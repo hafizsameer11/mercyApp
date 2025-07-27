@@ -267,7 +267,7 @@ const ChatScreen = () => {
                     text: msg.message || '',
                     image: msg.type === 'image' ? msg.file : null,
                     file: msg.type === 'file' ? msg.file : null,
-                    audio: msg.type === 'voice' ? msg.file : null,
+                    audio: msg.type === 'voice' ? msg.file : null, // ✅ this field
                     type: msg.type, // text, image, file, voice
                     time: new Date(msg.created_at).toLocaleTimeString([], {
                         hour: '2-digit',
@@ -364,44 +364,63 @@ const ChatScreen = () => {
 
     // recording logic
     const startRecording = async () => {
-        if (isRecording) return; // guard
-
         try {
+
             const { status } = await Audio.requestPermissionsAsync();
             if (status !== 'granted') {
                 alert('Microphone permission is required to record audio.');
                 return;
             }
 
-            // Stop any previous recording
-            if (recordingInstance) {
-                await recordingInstance.stopAndUnloadAsync();
-                setRecordingInstance(null);
-            }
-
             await Audio.setAudioModeAsync({
                 allowsRecordingIOS: true,
                 playsInSilentModeIOS: true,
             });
+            if (recordingInstance) {
+                try {
+                    const existingStatus = await recordingInstance.getStatusAsync();
 
-            const recording = new Audio.Recording();
-            await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-            await recording.startAsync();
+                    if (existingStatus.isRecording || !existingStatus.isDoneRecording) {
+                        await recordingInstance.stopAndUnloadAsync();
+                    }
 
-            setRecordingInstance(recording);
+                    // Always unload
+                    await recordingInstance.unloadAsync();
+                } catch (cleanupErr) {
+                    console.warn("Cleanup of old recording failed:", cleanupErr.message);
+                }
+
+                setRecordingInstance(null);
+            }
+
+            // ✅ Wait before creating new instance to avoid conflict
+            await new Promise((resolve) => setTimeout(resolve, 50));
+
+            const newRecording = new Audio.Recording();
+            await newRecording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+            await newRecording.startAsync();
+
+            console.log("Recording started");
+            setRecordingInstance(newRecording);
             setIsRecording(true);
         } catch (error) {
-            console.error('Failed to start recording:', error);
+            console.error('Failed to start recording:', error.message || error);
+            alert('Failed to start recording');
         }
     };
 
 
 
 
+
+
     const stopRecording = async () => {
+        if (!recordingInstance) return;
+
         try {
-            if (!recordingInstance) {
-                console.warn("No recording in progress.");
+            const status = await recordingInstance.getStatusAsync();
+
+            if (status.isDoneRecording || !status.isRecording) {
                 return;
             }
 
@@ -421,26 +440,73 @@ const ChatScreen = () => {
 
 
 
-    const sendAudioMessage = (uri) => {
-        const time = new Date().toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-        });
 
-        const newMsg = {
-            id: Date.now().toString(),
-            sender: userRole,
-            type: 'audio',
-            audioUri: uri,
-            time,
-        };
 
-        const updatedMessages = [...messages, newMsg];
-        setMessages(updatedMessages);
+
+
+    const sendAudioMessage = async (uri) => {
+        try {
+            const token = await AsyncStorage.getItem('token');
+
+            const fileName = `voice_${Date.now()}.m4a`;
+            const formData = new FormData();
+            formData.append('chat_id', chat_id);
+            formData.append('type', 'voice'); // ✅ important
+            formData.append('message', ''); // no caption
+            formData.append('is_forwarded', '');
+            formData.append('duration', '');
+
+            formData.append('file', {
+                uri,
+                name: fileName,
+                type: 'audio/m4a',
+            });
+
+            const response = await axios.post(API.SEND_MESSAGE, formData, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json',
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            const time = new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+            });
+
+            const newMsg = {
+                id: Date.now().toString(),
+                sender: user?.id, // ✅ show on right side
+                type: 'voice',
+                audio: response.data?.data?.file || uri, // backend or fallback
+                time,
+            };
+
+            setMessages(prev => [...prev, newMsg]);
+            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+        } catch (error) {
+            console.error('Error sending voice message:', error.response?.data || error.message);
+            alert('Failed to send voice message');
+        }
     };
+
     const playAudio = async (uri) => {
         try {
+            const playAudio = async (uri) => {
+                try {
+                    const { sound } = await Audio.Sound.createAsync(
+                        { uri: uri },
+                        { shouldPlay: true }
+                    );
+                    await sound.playAsync();
+                } catch (err) {
+                    console.error('Failed to play audio', err);
+                    alert('Could not play audio');
+                }
+            };
+
             const { sound } = await Audio.Sound.createAsync({ uri });
             await sound.playAsync();
         } catch (err) {
@@ -484,11 +550,11 @@ const ChatScreen = () => {
                 </View>
             );
         }
-        if (item.type === 'audio') {
+        if (item.type === 'voice') {
             return (
                 <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg]}>
                     <View style={isMyMessage ? styles.myBubble : styles.otherBubble}>
-                        <TouchableOpacity onPress={() => playAudio(item.audioUri)}>
+                        <TouchableOpacity onPress={() => playAudio(item.audio)}>
                             <Ionicons name="play" size={24} color="#fff" />
                         </TouchableOpacity>
                         <ThemedText style={styles.time}>{item.time}</ThemedText>
@@ -496,6 +562,7 @@ const ChatScreen = () => {
                 </View>
             );
         }
+
 
 
         if (item.type === 'payment') {
@@ -717,6 +784,7 @@ const ChatScreen = () => {
                             </TouchableOpacity>
                         ) : (
                             <RecordingButton
+                                isRecording={isRecording}
                                 onStart={startRecording}
                                 onStop={stopRecording}
                                 onLock={() => setRecordingModalVisible(true)}

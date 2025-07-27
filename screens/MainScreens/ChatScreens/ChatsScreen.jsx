@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import ArrowBox from '../../../components/TagIcon';
 import TagIcon from '../../../components/TagIcon';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import ThemedText from '../../../components/ThemedText'; // adjust path accordingly
 import { useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -45,6 +45,7 @@ const ChatScreen = () => {
   const [statusFilter, setStatusFilter] = useState('All');
   const [dateSort, setDateSort] = useState('Newest First');
   const [selectedChat, setSelectedChat] = useState(null);
+  const [userDetail, setUserDetail] = useState({});
   const navigation = useNavigation();
 
   const labelList = [
@@ -55,91 +56,14 @@ const ChatScreen = () => {
   ];
 
 
-  // const [chats, setChats] = useState([
-  //   {
-  //     id: '1',
-  //     name: 'Maleek',
-  //     lastMessage: 'New Order',
-  //     time: '2025-07-17T12:05:00',
-  //     unreadCount: 1,
-  //     label: { label: 'New Customer', color: '#0000FF', icon: require('../../../assets/Vector (8).png') },
-  //     showBadge: false,
-  //     image: require('../../../assets/Ellipse 18.png'),
-  //   },
-  //   {
-  //     id: '2',
-  //     name: 'Susan',
-  //     lastMessage: 'Welcome, you will be sent a form...',
-  //     time: '2025-07-17T12:05:00',
-  //     unreadCount: 1,
-  //     showBadge: false,
-  //     label: { label: 'Active Chats', color: '#0000FF', icon: require('../../../assets/Vector (10).png') },
-  //     image: require('../../../assets/Ellipse 18.png'),
-  //   },
-  //   {
-  //     id: '3',
-  //     name: 'Alex',
-  //     lastMessage: 'Completed',
-  //     time: '2025-07-16T12:05:00',
-  //     unreadCount: 0,
-  //     label: { label: 'Paid Customer', color: '#00AA00', icon: require('../../../assets/Vector (11).png') },
-  //     showBadge: false,
-  //     image: require('../../../assets/Ellipse 18.png'),
-  //   },
-  //   {
-  //     id: '4',
-  //     name: 'Susan',
-  //     lastMessage: 'No response yet...',
-  //     time: '2025-07-16T10:05:00',
-  //     unreadCount: 1,
-  //     label: { label: 'Not responding', color: '#FF0000', icon: require('../../../assets/Vector (9).png') },
-  //     showBadge: false,
-  //     image: require('../../../assets/Ellipse 18.png'),
-  //   },
-  // ]);
   const [chats, setChats] = useState([]);
-  // useEffect(() => {
-  //   const fetchChats = async () => {
-  //     try {
-  //       const token = await AsyncStorage.getItem('token');
 
-  //       const response = await axios.get(API.GET_ALL_CHATS, {
-  //         headers: {
-  //           Authorization: `Bearer ${token}`,
-  //         },
-  //       });
-
-  //       if (response.data.status === 'success') {
-  //         const chatData = response.data.data.map(chat => {
-  //           const otherUser = chat.participant_a.role === 'user' ? chat.participant_a : chat.participant_b;
-
-  //           return {
-  //             id: chat.id.toString(),
-  //             name: otherUser.name,
-  //             lastMessage: chat.messages?.slice(-1)[0]?.body || 'No messages yet',
-  //             time: chat.updated_at,
-  //             unreadCount: 0, // You can update this if your API returns unread counts
-  //             label: null, // Add logic if your API supports labels
-  //             image: otherUser.profile_picture
-  //               ? { uri: otherUser.profile_picture }
-  //               : require('../../../assets/Ellipse 18.png'),
-  //           };
-  //         });
-
-  //         setChats(chatData);
-  //       }
-  //     } catch (error) {
-  //       console.error('Failed to load chats:', error.response?.data || error.message);
-  //     }
-  //   };
-
-  //   fetchChats();
-  // }, []);
   useEffect(() => {
+    let interval;
+
     const fetchChats = async () => {
       try {
         const token = await AsyncStorage.getItem('token');
-
         const response = await axios.get(API.GET_ALL_CHATS, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -148,19 +72,20 @@ const ChatScreen = () => {
 
         if (response.data.status === 'success') {
           const chatData = response.data.data.map(chat => {
-            const otherUser = chat.participant_b; // ✅ always use participant_b
+            const otherUser = chat.participant_b;
 
             return {
               id: chat.id.toString(),
               name: otherUser.name,
               lastMessage: chat.messages?.slice(-1)[0]?.message || 'No messages yet',
               time: chat.updated_at,
-              unreadCount: 0,
+              unreadCount: chat.unreadCount ?? 0,
               label: null,
+              type: chat?.type,
               image: otherUser.profile_picture
                 ? { uri: otherUser.profile_picture }
                 : require('../../../assets/Ellipse 18.png'),
-              agentDetails: otherUser, // 👈 optional if you want to pass in navigation
+              agentDetails: otherUser,
             };
           });
 
@@ -168,13 +93,14 @@ const ChatScreen = () => {
         }
       } catch (error) {
         console.error('Failed to load chats:', error.response?.data || error.message);
-        
       }
     };
 
     fetchChats();
-  }, []);
+    interval = setInterval(fetchChats, 1000); // every second
 
+    return () => clearInterval(interval); // cleanup on unmount
+  }, []);
 
   const selectChatFromLabelModal = (chat) => {
     const updatedChats = chats.map(c =>
@@ -183,9 +109,6 @@ const ChatScreen = () => {
     setChats(updatedChats);
     closeLabelView();
   };
-
-
-
   const openModal = (chat) => {
     setSelectedChat(chat);
     setModalVisible(true);
@@ -195,7 +118,14 @@ const ChatScreen = () => {
       useNativeDriver: true,
     }).start();
   };
-
+  useEffect(() => {
+    const getUserDetails = async () => {
+      const userdata = await AsyncStorage.getItem('user');
+      const user = JSON.parse(userdata);
+      setUserDetail(user);
+    }
+    getUserDetails();
+  }, []);
   const closeModal = () => {
     Animated.timing(slideAnim, {
       toValue: height,
@@ -393,6 +323,12 @@ const ChatScreen = () => {
               <View style={styles.chatInfo}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <ThemedText style={styles.chatName}>{chat.name}</ThemedText>
+                  {
+                    userDetail && userDetail?.role == 'user' ? <ThemedText style={styles.chatName}></ThemedText>
+                      : <ThemedText style={styles.chatName2}>({chat.type =='user-agent'? 'Customer': 'Team'})</ThemedText>
+
+                  }
+                  {/* <ThemedText style={styles.chatName}>{chat.name}</ThemedText> */}
                   {chat.label && chat.showBadge && chat.label.icon && (
                     <Image source={chat.label.icon} style={styles.chatLabelImager} />
                   )}
@@ -530,6 +466,7 @@ const styles = StyleSheet.create({
   chatAvatar: { width: 45, height: 45, borderRadius: 25, marginRight: 10 },
   chatInfo: { flex: 1 },
   chatName: { fontSize: 15, fontWeight: 'bold', color: '#000' },
+  chatName2: { fontSize: 11, fontWeight: 'light', color: '#000' },
   chatMessage: { fontSize: 13, color: '#555' },
   chatMeta: { alignItems: 'flex-end' },
   chatTime: { fontSize: 11, color: '#999' },
