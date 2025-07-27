@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import questionnaireData from './questionnaireData';
 import EmojiSelector from 'react-native-emoji-selector';
 import { RecordingButton } from '../../../components/RecordingButton';
@@ -10,6 +10,10 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Linking from 'expo-linking';
 import { Pressable } from 'react-native';
 import ThemedText from '../../../components/ThemedText';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import API from '../../../config/api.config';
+
 // import EmojiSelector from 'react-native-emoji-selector';
 
 import {
@@ -34,11 +38,15 @@ import CategoryThreeModal from '../../../components/CategoryThreeModel';
 import PaymentModal from '../../../components/PaymentModal';
 import { ScrollView } from 'react-native-web';
 
+
 const ChatScreen = () => {
+
 
     const [previewImages, setPreviewImages] = useState([]);
     const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
     const [attachmentModal, setAttachmentModal] = useState(false);
+    const [user, setUser] = useState(null);
+
 
     const [quickRepliesModalVisible, setQuickRepliesModalVisible] = useState(false);
     const [addReplyModalVisible, setAddReplyModalVisible] = useState(false);
@@ -75,7 +83,8 @@ const ChatScreen = () => {
         },
     ]);
 
-
+    const { chat_id } = useRoute().params;
+    // console.log("chat id",chat_id)
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [paymentModalVisible, setPaymentModalVisible] = useState(false);
 
@@ -83,12 +92,10 @@ const ChatScreen = () => {
     const [questionnaireVisible, setQuestionnaireVisible] = useState(false);
 
     const navigation = useNavigation();
-    const { userRole, user, agent, service, messages: initialMessages = [] } = useRoute().params;
+    const { userRole, agent, service, messages: initialMessages = [] } = useRoute().params;
 
 
     const [messages, setMessages] = useState(initialMessages.length > 0 ? initialMessages : [
-        { id: '1', sender: 'agent', text: `Welcome to edits by ${agent.name}`, time: '09:22 AM' },
-        { id: '2', sender: 'agent', text: 'I will send a short form to fill...', time: '09:23 AM' },
     ]);
     const [inputMessage, setInputMessage] = useState('');
     const flatListRef = useRef();
@@ -100,20 +107,39 @@ const ChatScreen = () => {
             allowsMultipleSelection: true,
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
         });
+
         if (!result.canceled) {
+            const groupId = Date.now().toString();
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-            const newImages = result.assets.map((asset) => ({
-                id: `${Date.now()}-${Math.random()}`,
-                sender: userRole,
-                type: 'image',
-                image: asset.uri,
-                time,
-                groupId: Date.now().toString(),
-            }));
-            setMessages((prev) => [...prev, ...newImages]);
+
+            const uploads = result.assets.map(async (asset) => {
+                const success = await sendFileMessage({
+                    fileUri: asset.uri,
+                    fileName: asset.fileName || 'photo.jpg',
+                    fileType: asset.type || 'image/jpeg',
+                    messageType: 'image',
+                });
+
+                if (success) {
+                    return {
+                        id: `${Date.now()}-${Math.random()}`,
+                        sender: userRole,
+                        type: 'image',
+                        image: asset.uri,
+                        time,
+                        groupId,
+                    };
+                }
+                return null;
+            });
+
+            const sentImages = (await Promise.all(uploads)).filter(Boolean);
+            setMessages((prev) => [...prev, ...sentImages]);
         }
+
         setAttachmentModal(false);
     };
+
     const getImageGroupStyle = (count) => {
         return {
             flexDirection: count > 1 ? 'row' : 'column',
@@ -172,29 +198,138 @@ const ChatScreen = () => {
     };
 
 
-    const sendMessage = () => {
+
+    const sendMessage = async () => {
         if (!inputMessage.trim()) return;
 
-        const time = new Date().toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-        });
+        try {
+            const token = await AsyncStorage.getItem('token');
 
-        const newMsg = {
-            id: Date.now().toString(),
-            sender: userRole,
-            text: inputMessage,
-            time,
+            const formData = new FormData();
+            formData.append('chat_id', chat_id); // ✅ from useRoute().params
+            formData.append('type', 'text');
+            formData.append('message', inputMessage);
+            formData.append('is_forwarded', '');
+            formData.append('duration', '');
+
+            const response = await axios.post(API.SEND_MESSAGE, formData, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json',
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            console.log('Message Sent:', response.data);
+
+            // Show message in UI
+            const time = new Date().toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+            });
+
+            const newMsg = {
+                id: Date.now().toString(),
+                sender: user?.id,
+                text: inputMessage,
+                time,
+            };
+
+            setMessages(prev => [...prev, newMsg]);
+            setInputMessage('');
+            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+
+        } catch (error) {
+            console.error('Send message error:', error.response?.data || error.message);
+            alert(error.response?.data?.message || 'Failed to send message');
+        }
+    };
+
+    const fetchMessages = async () => {
+        try {
+            const token = await AsyncStorage.getItem('token');
+            const response = await axios.get(API.GET_CHAT_MESSAGES(chat_id), {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: 'application/json',
+                },
+            });
+            console.log('Messages:', response.data);
+
+            if (response.data.status === 'success') {
+                const fetchedMessages = response?.data?.data?.messages;
+                console.log("feteched messages", fetchMessages)
+
+                const formatted = fetchedMessages?.map((msg) => ({
+                    id: msg.id,
+                    sender: msg.sender_id,
+                    text: msg.message || '',
+                    image: msg.type === 'image' ? msg.file : null,
+                    file: msg.type === 'file' ? msg.file : null,
+                    audio: msg.type === 'voice' ? msg.file : null,
+                    type: msg.type, // text, image, file, voice
+                    time: new Date(msg.created_at).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true,
+                    }),
+                }));
+
+                setMessages(formatted); // reverse to show oldest first
+            }
+        } catch (error) {
+            console.error('Fetch messages error:', error.response?.data || error.message);
+            alert('Failed to load chat messages');
+        }
+    };
+
+    useEffect(() => {
+        fetchMessages();
+        const getUserDetail = async () => {
+            const userData = await AsyncStorage.getItem("user");
+            if (userData) {
+                setUser(JSON.parse(userData));
+            }
         };
 
-        const updatedMessages = [...messages, newMsg];
-        setMessages(updatedMessages);
-        setInputMessage('');
-        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+        getUserDetail();
+    }, []);
 
+    const sendFileMessage = async ({ fileUri, fileName, fileType, messageType = 'file', duration = '' }) => {
+        try {
+            const token = await AsyncStorage.getItem('token');
 
+            const formData = new FormData();
+            formData.append('chat_id', chat_id); // from useRoute().params
+            formData.append('type', messageType); // 'image', 'file', 'voice'
+            formData.append('message', ''); // optional caption
+            formData.append('is_forwarded', '');
+            formData.append('duration', duration);
 
+            formData.append('file', {
+                uri: fileUri,
+                name: fileName,
+                type: fileType,
+            });
+
+            const response = await axios.post(API.SEND_MESSAGE, formData, {
+                headers: {
+
+                    Authorization: `Bearer ${token}`,
+                    Accept: 'application/json',
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            console.log(`${messageType} sent:`, response.data);
+
+            return true;
+        } catch (error) {
+            console.error(`Error sending ${messageType}:`, error.response?.data || error.message);
+            alert(error.response?.data?.message || `Failed to send ${messageType}`);
+            return false;
+        }
     };
 
     const sendQuestionnaire = () => {
@@ -315,7 +450,7 @@ const ChatScreen = () => {
 
 
     const renderMessage = ({ item }) => {
-        const isMyMessage = item.sender === userRole;
+        const isMyMessage = item.sender === user?.id;
         if (item.type === 'image') {
             const group = groupedImages[item.groupId];
             if (!group || group[0].id !== item.id) return null; // Render group only once
@@ -522,7 +657,7 @@ const ChatScreen = () => {
                         <View style={styles.orderCardBody}>
                             <View style={styles.orderInfoRow1}>
                                 <ThemedText style={styles.orderLabel}>Name</ThemedText>
-                                <ThemedText style={styles.orderValue}>{user}</ThemedText>
+                                <ThemedText style={styles.orderValue}>{user?.name}</ThemedText>
                             </View>
                             <View style={styles.orderInfoRow2}>
                                 <ThemedText style={styles.orderLabel}>Order type</ThemedText>
