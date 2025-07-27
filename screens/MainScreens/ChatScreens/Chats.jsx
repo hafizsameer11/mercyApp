@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import questionnaireData from './questionnaireData';
+// import questionnaireData from './questionnaireData';
 import EmojiSelector from 'react-native-emoji-selector';
 import { RecordingButton } from '../../../components/RecordingButton';
 import VoiceRecorderModal from '../../../components/VoiceRecorderModal';
@@ -222,6 +222,7 @@ const ChatScreen = () => {
 
             console.log('Message Sent:', response.data);
 
+
             // Show message in UI
             const time = new Date().toLocaleTimeString([], {
                 hour: '2-digit',
@@ -245,6 +246,32 @@ const ChatScreen = () => {
             alert(error.response?.data?.message || 'Failed to send message');
         }
     };
+
+    const sendQuestionnaire = async (chat_id, user_id) => {
+        try {
+            const token = await AsyncStorage.getItem('token');
+
+            const assignPayload = {
+                chat_id,
+                user_id,
+            };
+
+            const response = await axios.post(
+                API.ASSIGN_QUESTIONNAIRE,
+                assignPayload,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                }
+            );
+
+            console.log("✅ Questionnaire assigned:", response.data);
+            alert("✅ Questionnaire sent successfully.");
+        } catch (error) {
+            console.error("❌ Failed to assign questionnaire:", error.response?.data || error.message);
+            alert("❌ Failed to send questionnaire.");
+        }
+    };
+
 
     const fetchMessages = async () => {
         try {
@@ -332,35 +359,35 @@ const ChatScreen = () => {
         }
     };
 
-    const sendQuestionnaire = () => {
-        const time = new Date().toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-        });
+    // const sendQuestionnaire = () => {
+    //     const time = new Date().toLocaleTimeString([], {
+    //         hour: '2-digit',
+    //         minute: '2-digit',
+    //         hour12: true,
+    //     });
 
-        const newMsg = {
-            id: Date.now().toString(),
-            sender: 'agent',
-            type: 'questionnaire',
-            text: 'Please fill out this questionnaire form.',
-            time,
-            categories: questionnaireData.map(item => item.title),
-        };
+    //     const newMsg = {
+    //         id: Date.now().toString(),
+    //         sender: 'agent',
+    //         type: 'questionnaire',
+    //         text: 'Please fill out this questionnaire form.',
+    //         time,
+    //         categories: questionnaireData.map(item => item.title),
+    //     };
 
-        const updatedMessages = [...messages, newMsg];
-        setMessages(updatedMessages);
-        setModalVisible(false);
+    //     const updatedMessages = [...messages, newMsg];
+    //     setMessages(updatedMessages);
+    //     setModalVisible(false);
 
-        // Simulate sending to customer by navigating with updated messages
-        navigation.navigate('Chat', {
-            userRole: 'customer',
-            user,
-            agent,
-            service,
-            initialMessages: updatedMessages,
-        });
-    };
+    //     // Simulate sending to customer by navigating with updated messages
+    //     navigation.navigate('Chat', {
+    //         userRole: 'customer',
+    //         user,
+    //         agent,
+    //         service,
+    //         initialMessages: updatedMessages,
+    //     });
+    // };
 
     // recording logic
     const startRecording = async () => {
@@ -816,11 +843,17 @@ const ChatScreen = () => {
                                     </TouchableOpacity>
 
 
-                                    <TouchableOpacity onPress={() => navigation.navigate('AgentQuestionnaire')} style={styles.modalItemRow}>
+                                    <TouchableOpacity onPress={() => navigation.navigate('AgentQuestionnaire', {
+                                        chat_id,
+                                        user_id: user?.id,
+                                    })} style={styles.modalItemRow}>
                                         <Ionicons name="eye-outline" size={20} color="#000" style={styles.modalIcon} />
                                         <ThemedText style={styles.modalItemText}>View Questionnaire</ThemedText>
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={sendQuestionnaire} style={styles.modalItemRow}>
+                                    <TouchableOpacity onPress={() => {
+                                        sendQuestionnaire(chat_id, user?.id); // Use correct IDs
+                                        // closeModal(); // Optional
+                                    }} style={styles.modalItemRow}>
                                         <Ionicons name="paper-plane-outline" size={20} color="#000" style={styles.modalIcon} />
                                         <ThemedText style={styles.modalItemText}>Send Questionnaire</ThemedText>
                                     </TouchableOpacity>

@@ -17,6 +17,8 @@ const API = {
   SEND_MESSAGE: `${BASE_URL}/send-message`,
   GET_CHAT_MESSAGES: (chatId) => `${BASE_URL}/chat/${chatId}`,
   GET_ALL_CHATS: `${BASE_URL}/chats`,
+  GET_QUESTIONNAIRE: `${BASE_URL}/admin/questionnaire`,
+  ASSIGN_QUESTIONNAIRE: `${BASE_URL}/questionnaire/assign`,
 
 
 
