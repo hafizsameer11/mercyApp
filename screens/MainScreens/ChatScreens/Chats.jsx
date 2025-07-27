@@ -10,6 +10,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Linking from 'expo-linking';
 import { Pressable } from 'react-native';
 import ThemedText from '../../../components/ThemedText';
+// import EmojiSelector from 'react-native-emoji-selector';
+
 import {
     View,
     Text,
@@ -543,11 +545,12 @@ const ChatScreen = () => {
                     {showEmojiPicker && (
                         <View style={{ height: 250 }}>
                             <EmojiSelector
-                                onEmojiSelected={emoji => setInputMessage(prev => prev + emoji)} // FIXED LINE
+                                onEmojiSelected={emoji => setInputMessage(prev => prev + emoji)}
                                 showSearchBar={true}
                                 showTabs={true}
                                 showSectionTitles={false}
                                 columns={8}
+                                emojiStyle={{ fontSize: 24 }} // ✅ This prevents crash
                             />
                         </View>
                     )}
@@ -583,12 +586,11 @@ const ChatScreen = () => {
                             />
                         )}
                     </View>
-
                     {/* Modals */}
                     {/* Agent options Modal */}
                     {userRole === 'agent' && (
                         <Modal visible={modalVisible} animationType="slide" transparent>
-                            <View style={[styles.modalOverlay, { backgroundColor: '#00000090',}]}>
+                            <View style={[styles.modalOverlay, { backgroundColor: '#00000090', }]}>
                                 <View style={[styles.agentOptionsModal, { backgroundColor: "#F5F5F7" }]}>
                                     <View style={styles.modalHeader}>
                                         <ThemedText style={styles.modalTitle}>Options</ThemedText>
@@ -714,7 +716,7 @@ const ChatScreen = () => {
                         }}
                     />
                     <Modal visible={viewNotesVisible} animationType="slide" transparent>
-                        <View style={[styles.modalOverlay, {backgroundColor: '#00000090'}]}>
+                        <View style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
                             <View style={[styles.agentOptionsModal, { backgroundColor: '#F5F5F7', maxHeight: '80%' }]}>
                                 <View style={styles.modalHeader}>
                                     <ThemedText style={styles.modalTitle}>View Notes</ThemedText>
@@ -756,7 +758,7 @@ const ChatScreen = () => {
                     </Modal>
                     {/*  Add notes Modal*/}
                     <Modal visible={addNoteVisible} animationType="slide" transparent>
-                        <View style={[styles.modalOverlay, {backgroundColor: '#00000090'}]}>
+                        <View style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
                             <View style={{
                                 backgroundColor: '#f5f5f7',
                                 borderRadius: 20,
@@ -843,7 +845,7 @@ const ChatScreen = () => {
                     />
                     {/* quick reply modal */}
                     <Modal visible={quickRepliesModalVisible} animationType="slide" transparent>
-                        <View style={[styles.modalOverlay, {backgroundColor: '#00000090'}]}>
+                        <View style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
                             <View style={[styles.agentOptionsModal, { backgroundColor: '#F5F5F7', maxHeight: '80%' }]}>
                                 <View style={styles.modalHeader}>
                                     <ThemedText style={styles.modalTitle}>Saved Quick Replies</ThemedText>
@@ -907,7 +909,7 @@ const ChatScreen = () => {
                     </Modal>
                     {/* add new quick reply modal */}
                     <Modal visible={addReplyModalVisible} animationType="slide" transparent>
-                        <KeyboardAvoidingView behavior="padding" style={[styles.modalOverlay, {backgroundColor: '#00000090'}]}>
+                        <KeyboardAvoidingView behavior="padding" style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
                             <View style={[styles.agentOptionsModal, { backgroundColor: '#F5F5F7' }]}>
                                 <View style={styles.modalHeader}>
                                     <ThemedText style={styles.modalTitle}>Add quick reply</ThemedText>
@@ -1090,7 +1092,7 @@ const styles = StyleSheet.create({
         borderRadius: 25,
     },
     agentOptionsModal: {
-          backgroundColor: '#00000066',
+        backgroundColor: '#00000066',
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         paddingHorizontal: 20,
@@ -1100,7 +1102,7 @@ const styles = StyleSheet.create({
 
     modalOverlay: {
         flex: 1,
-        
+
         backgroundColor: 'transparent',
         justifyContent: 'flex-end',
     },
