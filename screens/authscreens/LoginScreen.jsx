@@ -11,8 +11,8 @@ import {
     Image,
 } from 'react-native';
 import logo from '../../assets/logo.png';
-import icon from '../../assets/icon.png'; 
-import google from '../../assets/google.png'; 
+import icon from '../../assets/icon.png';
+import google from '../../assets/google.png';
 import facebook from '../../assets/facebook.png';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -32,50 +32,43 @@ const LoginScreen = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [isEmailFocused, setEmailFocused] = useState(false);
     const [isPasswordFocused, setPasswordFocused] = useState(false);
-
-
-
     const handleLogin = async () => {
-  try {
-    const response = await axios.post(API.LOGIN, {
-      email,
-      password,
-    }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-    });
+        try {
+            const response = await axios.post(API.LOGIN, {
+                email,
+                password,
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+            });
 
-      const { user, token } = response.data?.data;
+            const { user, token } = response.data?.data;
 
-    // Store user and token separately
-    await AsyncStorage.setItem('user', JSON.stringify(user));
-    await AsyncStorage.setItem('token', token);
+            // Store user and token separately
+            await AsyncStorage.setItem('user', JSON.stringify(user));
+            await AsyncStorage.setItem('token', token);
 
-    const savedUser = await AsyncStorage.getItem('user');
-    const savedToken = await AsyncStorage.getItem('token');
-    console.log('✅ Stored User:', JSON.parse(savedUser));
-    console.log('✅ Stored Token:', savedToken);
-
-    
-
-    console.log('Login Success:', response.data);
-    navigation.navigate('Main');
-
-  } catch (error) {
-    if (error.response) {
-      console.log('Login failed:', error.response.data);
-    } else {
-      console.log('Network or other error:', error.message);
-    }
-  }
-  
-};
+            const savedUser = await AsyncStorage.getItem('user');
+            const savedToken = await AsyncStorage.getItem('token');
+            console.log('✅ Stored User:', JSON.parse(savedUser));
+            console.log('✅ Stored Token:', savedToken);
 
 
 
+            console.log('Login Success:', response.data);
+            navigation.navigate('Main');
 
+        } catch (error) {
+            if (error.response) {
+                console.log('Login failed:', error.response.data);
+            } else {
+                console.log('Network or other error:', error.message);
+            }
+        }
+
+    };
     return (
         <>
 

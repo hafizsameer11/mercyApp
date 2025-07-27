@@ -1,27 +1,71 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   TextInput,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import ThemedText from '../../../components/ThemedText';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const EditProfile = () => {
   const navigation = useNavigation();
 
-  const [username, setUsername] = useState('Maleek');
-  const [phone, setPhone] = useState('070301245678');
+  const [username, setUsername] = useState('');
+  const [phone, setPhone] = useState('');
+
+  useEffect(() => {
+    const getUserData = async () => {
+      const storedUser = await AsyncStorage.getItem('user');
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        setUsername(parsed.name || '');
+        setPhone(parsed.phone || '');
+      }
+    };
+    getUserData();
+  }, []);
+
+  const handleSaveChanges = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const response = await axios.post(
+        'https://editbymercy.hmstech.xyz/api/edit-profile',
+        {
+          name: username,
+          phone: phone,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+          },
+        }
+      );
+
+      if (response.status === 200) {
+        Alert.alert('Success', 'Profile updated successfully');
+        navigation.goBack();
+      } else {
+        Alert.alert('Error', 'Failed to update profile');
+      }
+    } catch (error) {
+      console.error('Edit Profile Error:', error);
+      Alert.alert('Error', 'Something went wrong while updating your profile.');
+    }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
-      {/* Header */}
       <StatusBar style="dark" />
 
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={28} color="#000" />
@@ -57,7 +101,7 @@ const EditProfile = () => {
       </View>
 
       {/* Save Button */}
-      <TouchableOpacity style={styles.saveBtn}>
+      <TouchableOpacity style={styles.saveBtn} onPress={handleSaveChanges}>
         <ThemedText style={styles.saveText}>Save Changes</ThemedText>
       </TouchableOpacity>
     </ScrollView>

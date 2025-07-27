@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     View,
     TextInput,
@@ -25,11 +25,13 @@ import { RecordingButton } from '../../../components/RecordingButton';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { StatusBar } from 'expo-status-bar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
 const AgentToAgentChatScreen = () => {
     const navigation = useNavigation();
     const { agent } = useRoute().params;
-
+    console.log("agent details we are getting", agent)
     const userRole = 'agent';
 
     const [inputMessage, setInputMessage] = useState('');
@@ -49,6 +51,7 @@ const AgentToAgentChatScreen = () => {
     const [recording, setRecording] = useState(null);
     const [recordingModalVisible, setRecordingModalVisible] = useState(false);
     const [attachmentModal, setAttachmentModal] = useState(false);
+    const [userDetail, setUserDetail] = useState({});
     const flatListRef = useRef();
 
     const sendMessage = () => {
@@ -62,7 +65,7 @@ const AgentToAgentChatScreen = () => {
 
         const newMsg = {
             id: Date.now().toString(),
-            sender: userRole,
+            sender: userDetail.id,
             text: inputMessage,
             time,
         };
@@ -170,12 +173,22 @@ const AgentToAgentChatScreen = () => {
         }
     };
 
+    useEffect(() => {
+        const getUser = async () => {
+            const user = await AsyncStorage.getItem('user');
+            if (user) {
+                setUserDetail(JSON.parse(user));
+            }
+        }
+        getUser(); 
+    },[]);
     const renderMessage = ({ item }) => {
-        const isMyMessage = item.sender === userRole;
+        console.log("message item", item,"yser details",userDetail);
+        const isMyMessage = item.sender ==userDetail.id;
 
         if (item.type === 'image') {
             const group = groupedImages[item.groupId];
-            if (!group || group[0].id !== item.id) return null; // Render group only once
+            if (!group || group[0].id !== item.id) return null; 
             return (
                 <View style={[styles.messageRow, { marginBottom: 20 }, item.sender === userRole ? styles.rightAlign : styles.leftAlign]}>
                     <View style={{ paddingBottom: 10, backgroundColor: isMyMessage ? '#992C55' : '#E7E7E7', borderRadius: 10, }}>
@@ -214,7 +227,40 @@ const AgentToAgentChatScreen = () => {
             </View>
         );
     };
+    useEffect(() => {
+        const fetchMessages = async () => {
+            try {
+                const token = await AsyncStorage.getItem('token'); // Or however you store the token
+                const response = await axios.get(`https://editbymercy.hmstech.xyz/api/open-agent-chat/${agent.id}`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
 
+                const chatData = response.data.data[0]; // Assuming only one chat per agent-agent pair
+                const formattedMessages = chatData.messages.map((msg) => ({
+                    id: msg.id.toString(),
+                    sender: msg.sender_id,
+                    type: msg.type,
+                    text: msg.message,
+                    senderId: msg.user_id,
+                    image: msg.file,
+                    audioUri: msg.type === 'voice' ? msg.file : null,
+                    time: new Date(msg.created_at).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true,
+                    }),
+                }));
+
+                setMessages(formattedMessages);
+            } catch (error) {
+                console.error("Error fetching messages:", error);
+            }
+        };
+
+        fetchMessages();
+    }, []);
     return (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <StatusBar style='light' />
@@ -423,7 +469,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         paddingVertical: 25,
         paddingHorizontal: 30,
-       
+
     },
     attachmentOptionText: {
         color: '#fff',

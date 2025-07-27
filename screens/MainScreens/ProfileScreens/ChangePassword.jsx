@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,28 +6,88 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  ToastAndroid,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import ThemedText from '../../../components/ThemedText'; // Assuming you have a themed text component
+import ThemedText from '../../../components/ThemedText';
+import axios from 'axios';
 
 const ChangePassword = () => {
   const navigation = useNavigation();
+
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [reenterPassword, setReenterPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showReenterPassword, setShowReenterPassword] = useState(false);
-  const [timer, setTimer] = useState(59); // Starts from 59
+  const [timer, setTimer] = useState(59);
+  const [codeVerified, setCodeVerified] = useState(false);
 
-  // Start countdown when component mounts
-  React.useEffect(() => {
+  useEffect(() => {
     const countdown = setInterval(() => {
       setTimer((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(countdown);
   }, []);
+
+  const toast = (msg) => {
+    ToastAndroid.show(msg, ToastAndroid.SHORT);
+  };
+
+  const handleSendCode = async () => {
+    if (!email) return toast('Please enter your email');
+
+    try {
+      await axios.post('https://editbymercy.hmstech.xyz/api/auth/forget-password', {
+        email,
+      });
+      toast('Code sent to email');
+      setTimer(59);
+    } catch (err) {
+      console.log(err.response?.data || err.message);
+      toast('Failed to send code');
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!email || !code) return toast('Enter both email and code');
+
+    try {
+      await axios.post('https://editbymercy.hmstech.xyz/api/auth/verify-code', {
+        email,
+        code,
+      });
+      toast('Code verified');
+      setCodeVerified(true);
+    } catch (err) {
+      console.log(err.response?.data || err.message);
+      toast('Invalid code or email');
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!newPassword || !reenterPassword) {
+      return toast('Please enter both passwords');
+    }
+
+    if (newPassword !== reenterPassword) {
+      return toast('Passwords do not match');
+    }
+
+    try {
+      await axios.post('https://editbymercy.hmstech.xyz/api/auth/change-password', {
+        email,
+        password: newPassword,
+      });
+      toast('Password changed successfully');
+      navigation.goBack();
+    } catch (err) {
+      console.log(err.response?.data || err.message);
+      toast('Failed to change password');
+    }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -45,7 +105,6 @@ const ChangePassword = () => {
           Input the email you used in creating your account, a verification code will be sent
         </ThemedText>
 
-        {/* Email Input with Send */}
         <View style={styles.rowInput}>
           <TextInput
             style={[styles.input, { flex: 1 }]}
@@ -53,17 +112,15 @@ const ChangePassword = () => {
             value={email}
             onChangeText={setEmail}
           />
-          <TouchableOpacity style={styles.sendBtn}>
+          <TouchableOpacity style={styles.sendBtn} onPress={handleSendCode}>
             <ThemedText style={styles.sendText}>Send</ThemedText>
           </TouchableOpacity>
         </View>
 
-        {/* Request New Code */}
         <ThemedText style={styles.timerText}>
           Request new code in <Text style={{ color: 'red' }}>00:{String(timer).padStart(2, '0')}</Text>
         </ThemedText>
 
-        {/* Input Code */}
         <ThemedText style={styles.label}>Input Code</ThemedText>
         <View style={styles.rowInput}>
           <TextInput
@@ -73,58 +130,61 @@ const ChangePassword = () => {
             value={code}
             onChangeText={setCode}
           />
-          <TouchableOpacity style={styles.verifyBtn}>
+          <TouchableOpacity style={styles.verifyBtn} onPress={handleVerifyCode}>
             <ThemedText style={styles.sendText}>Verify</ThemedText>
           </TouchableOpacity>
         </View>
 
-        {/* New Password */}
-        <ThemedText style={styles.label}>New Password</ThemedText>
-        <View style={styles.inputWithIcon}>
-          <TextInput
-            style={styles.input}
-            placeholder="New password"
-            secureTextEntry={!showNewPassword}
-            value={newPassword}
-            onChangeText={setNewPassword}
-          />
-          <TouchableOpacity
-            onPress={() => setShowNewPassword((prev) => !prev)}
-            style={styles.eyeIcon}
-          >
-            <Ionicons name={showNewPassword ? 'eye' : 'eye-off'} size={20} color="#999" />
-          </TouchableOpacity>
-        </View>
+        {codeVerified && (
+          <>
+            <ThemedText style={styles.label}>New Password</ThemedText>
+            <View style={styles.inputWithIcon}>
+              <TextInput
+                style={styles.input}
+                placeholder="New password"
+                secureTextEntry={!showNewPassword}
+                value={newPassword}
+                onChangeText={setNewPassword}
+              />
+              <TouchableOpacity
+                onPress={() => setShowNewPassword((prev) => !prev)}
+                style={styles.eyeIcon}
+              >
+                <Ionicons name={showNewPassword ? 'eye' : 'eye-off'} size={20} color="#999" />
+              </TouchableOpacity>
+            </View>
 
-        {/* Re-enter Password */}
-        <ThemedText style={styles.label}>Reenter Password</ThemedText>
-        <View style={styles.inputWithIcon}>
-          <TextInput
-            style={styles.input}
-            placeholder="Reenter password"
-            secureTextEntry={!showReenterPassword}
-            value={reenterPassword}
-            onChangeText={setReenterPassword}
-          />
-          <TouchableOpacity
-            onPress={() => setShowReenterPassword((prev) => !prev)}
-            style={styles.eyeIcon}
-          >
-            <Ionicons name={showReenterPassword ? 'eye' : 'eye-off'} size={20} color="#999" />
-          </TouchableOpacity>
-        </View>
+            <ThemedText style={styles.label}>Reenter Password</ThemedText>
+            <View style={styles.inputWithIcon}>
+              <TextInput
+                style={styles.input}
+                placeholder="Reenter password"
+                secureTextEntry={!showReenterPassword}
+                value={reenterPassword}
+                onChangeText={setReenterPassword}
+              />
+              <TouchableOpacity
+                onPress={() => setShowReenterPassword((prev) => !prev)}
+                style={styles.eyeIcon}
+              >
+                <Ionicons name={showReenterPassword ? 'eye' : 'eye-off'} size={20} color="#999" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Save Button */}
+            <TouchableOpacity style={styles.saveBtn} onPress={handleChangePassword}>
+              <ThemedText style={styles.saveText}>Save Changes</ThemedText>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
-
-      {/* Save Button */}
-      <TouchableOpacity style={styles.saveBtn}>
-        <ThemedText style={styles.saveText}>Save Changes</ThemedText>
-      </TouchableOpacity>
     </ScrollView>
   );
 };
 
 export default ChangePassword;
 
+// ✅ Using your provided styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -178,14 +238,14 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     paddingHorizontal: 20,
     borderRadius: 10,
-    marginBottom:14,
+    marginBottom: 14,
     marginLeft: 8,
   },
   verifyBtn: {
     backgroundColor: '#C48DA6',
     paddingVertical: 13,
     paddingHorizontal: 20,
-    marginBottom:10,
+    marginBottom: 10,
     borderRadius: 10,
     marginLeft: 8,
   },
@@ -198,7 +258,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#444',
     marginBottom: 16,
-    marginLeft:220,
+    marginLeft: 220,
   },
   inputWithIcon: {
     position: 'relative',

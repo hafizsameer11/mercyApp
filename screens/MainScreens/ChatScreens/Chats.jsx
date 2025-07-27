@@ -10,8 +10,6 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Linking from 'expo-linking';
 import { Pressable } from 'react-native';
 import ThemedText from '../../../components/ThemedText';
-// import EmojiSelector from 'react-native-emoji-selector';
-
 import {
     View,
     Text,
@@ -514,6 +512,7 @@ const ChatScreen = () => {
                         )}
                     </View>
 
+                    {/* Order Card */}
                     <View style={styles.orderCardWrapper}>
                         <View style={styles.orderCardHeader}>
                             <Ionicons name="bookmarks-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
@@ -550,8 +549,9 @@ const ChatScreen = () => {
                                 showTabs={true}
                                 showSectionTitles={false}
                                 columns={8}
-                                emojiStyle={{ fontSize: 24 }} // ✅ This prevents crash
+                                emojiStyle={{ fontSize: 24 }} // ✅ Enforce a safe font size
                             />
+
                         </View>
                     )}
                     {/* Input */}
@@ -586,6 +586,7 @@ const ChatScreen = () => {
                             />
                         )}
                     </View>
+
                     {/* Modals */}
                     {/* Agent options Modal */}
                     {userRole === 'agent' && (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     FlatList,
@@ -9,40 +9,45 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import ThemedText from '../../components/ThemedText'; // adjust the path if needed
-
-const notificationsData = [
-    {
-        id: '1',
-        title: 'New Notification',
-        description:
-            'Get the best photo editing services from us. We offer great services with the best prices, give us a trial today',
-        time: '08:22 AM',
-        avatar: require('../../assets/Rectangle 55.png'),
-        unread: true,
-    },
-    {
-        id: '2',
-        title: 'New Notification',
-        description:
-            'Get the best photo editing services from us. We offer great services with the best prices, give us a trial today',
-        time: '08:22 AM',
-        avatar: null,
-        unread: false,
-    },
-    {
-        id: '3',
-        title: 'New Notification',
-        description:
-            'Get the best photo editing services from us. We offer great services with the best prices, give us a trial today',
-        time: '08:22 AM',
-        avatar: require('../../assets/Rectangle 55.png'),
-        unread: true,
-    },
-];
+import ThemedText from '../../components/ThemedText';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const NotificationsScreen = () => {
     const navigation = useNavigation();
+    const [notifications, setNotifications] = useState([]);
+
+    useEffect(() => {
+        const fetchNotifications = async () => {
+            try {
+                const token = await AsyncStorage.getItem('token');
+                const response = await axios.get('https://editbymercy.hmstech.xyz/api/get-notifications', {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    }
+                });
+                console.log("response",response.data)
+                const data = response.data.data.map(item => ({
+                    id: item.id.toString(),
+                    title: item.title,
+                    description: item.content,
+                    time: new Date(item.created_at).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                    }),
+                    unread: item.is_read === 0,
+                    avatar: null // or default image if needed
+                }));
+
+                setNotifications(data);
+            } catch (error) {
+                console.error("Failed to fetch notifications", error);
+            }
+        };
+
+        fetchNotifications();
+    }, []);
 
     const renderItem = ({ item }) => (
         <View style={styles.card}>
@@ -75,7 +80,7 @@ const NotificationsScreen = () => {
 
             {/* Notification List */}
             <FlatList
-                data={notificationsData}
+                data={notifications}
                 keyExtractor={(item) => item.id}
                 renderItem={renderItem}
                 contentContainerStyle={{ padding: 20 }}
@@ -83,7 +88,9 @@ const NotificationsScreen = () => {
         </View>
     );
 };
+
 export default NotificationsScreen;
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -144,4 +151,3 @@ const styles = StyleSheet.create({
         marginLeft: 12,
     },
 });
-
