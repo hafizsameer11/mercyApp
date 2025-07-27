@@ -1,0 +1,217 @@
+import React, { useState } from 'react';
+import {
+    View,
+    Text,
+    Modal,
+    TouchableOpacity,
+    Dimensions,
+    StyleSheet,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import questionnaireData from '../screens/MainScreens/ChatScreens/questionnaireData';
+import ThemedText from './ThemedText'; // Assuming you have a themed text component
+
+const { width } = Dimensions.get('window');
+
+const CategoryOneModal = ({ visible, onClose, onNext }) => {
+    const category = questionnaireData[0]; // First category: Face
+    const [selectedOption, setSelectedOption] = useState(null);
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent>
+            <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                    {/* Header */}
+                    <View style={styles.header}>
+                        <ThemedText style={styles.title}>Questions</ThemedText>
+                        <TouchableOpacity>
+                            <ThemedText style={styles.submitBtn}>Submit</ThemedText>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={{ backgroundColor:"#fff", borderRadius:20, padding:4 }} onPress={onClose}>
+                            <Ionicons name="close" size={24} color="#000" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Progress Bar */}
+                    <View style={styles.progressBar}>
+                        <View style={styles.progressFill} />
+                    </View>
+
+                    {/* Category Box */}
+                    <View style={styles.card}>
+                        <View style={styles.cardHeader}>
+                            <ThemedText style={styles.circle}>1</ThemedText>
+                            <View>
+                                <ThemedText style={styles.cardTitle}>{category.title}</ThemedText>
+                                <ThemedText style={styles.cardSubtitle}>
+                                    {category.description}
+                                </ThemedText>
+                            </View>
+                        </View>
+                        <View style={{ backgroundColor: "#fff", padding: 10, borderRadius: 10, zIndex: 1 , marginTop: -25, elevation: 1 }}>
+                            {/* Options */}
+                            {category.questions[0]?.options?.map((option, idx) => (
+
+                                <TouchableOpacity
+                                    key={idx}
+                                    style={[
+                                        styles.option,
+                                        selectedOption === option && styles.optionSelected,
+                                    ]}
+                                    onPress={() => setSelectedOption(option)}
+                                >
+                                    <ThemedText
+                                        style={[
+                                            styles.optionText,
+                                            selectedOption === option && styles.optionTextSelected,
+                                        ]}
+                                    >
+                                        {option}
+                                    </ThemedText>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
+
+                    {/* Footer Buttons */}
+                    <View style={styles.footer}>
+                        <TouchableOpacity onPress={onClose} style={styles.footerBtnGray}>
+                            <ThemedText style={styles.footerBtnText}>Close</ThemedText>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={onNext} style={styles.footerBtnPink}>
+                            <ThemedText style={styles.footerBtnText}>Next</ThemedText>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
+};
+
+export default CategoryOneModal;
+const styles = StyleSheet.create({
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: '#00000088',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        height: '52%',
+        backgroundColor: '#F5F5F7',
+        borderTopLeftRadius: 30,
+        borderTopRightRadius: 30,
+        padding: 20,
+       
+    },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    title: {
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    submitBtn: {
+        color: '#fff',
+        fontWeight: '600',
+        paddingHorizontal: 35,
+        paddingVertical: 10,
+        marginLeft: 130,
+        borderRadius: 30,
+        backgroundColor: '#992c55',
+    },
+    progressBar: {
+        height: 5,
+        backgroundColor: '#f1f1f1',
+        borderRadius: 4,
+        marginVertical: 15,
+    },
+    progressFill: {
+        height: '100%',
+        width: '33%',
+        backgroundColor: '#992c55',
+        borderRadius: 4,
+    },
+    card: {
+        // backgroundColor: '#f9f9f9',
+        borderRadius: 16,
+        width: width - 20,
+        marginLeft: -10,
+        padding: 16,
+        marginTop: -10,
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 15,
+        backgroundColor: '#992C55',
+        padding: 10,
+        borderTopLeftRadius: 10,
+        borderTopRightRadius: 10,
+    },
+    circle: {
+        backgroundColor: '#fff',
+        color: '#992c55',
+        borderRadius: 20,
+        width: 30,
+        height: 30,
+        textAlign: 'center',
+        lineHeight: 30,
+        fontWeight: 'bold',
+        marginRight: 10,
+    },
+    cardTitle: {
+        fontSize: 16,
+        color: '#fff',
+        fontWeight: 'bold',
+    },
+    cardSubtitle: {
+        fontSize: 13,
+        color: '#fff',
+        paddingTop: 5,
+        paddingBottom: 10,
+
+    },
+    option: {
+        // borderWidth: 1,
+        borderColor: '#ccc',
+        backgroundColor:"#F5EAEE",
+        borderRadius: 10,
+        padding: 12,
+        marginTop: 10,
+    },
+    optionSelected: {
+        backgroundColor: '#992c55',
+        borderColor: '#992c55',
+    },
+    optionText: {
+        fontSize: 15,
+        color: '#333',
+    },
+    optionTextSelected: {
+        color: '#fff',
+        fontWeight: 'bold',
+    },
+    footer: {
+        marginTop: 10,
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+    },
+    footerBtnGray: {
+        paddingVertical: 14,
+        paddingHorizontal: 60,
+        backgroundColor: '#ddd',
+        borderRadius: 30,
+    },
+    footerBtnPink: {
+        paddingVertical: 14,
+        paddingHorizontal: 60,
+        backgroundColor: '#992c55',
+        borderRadius: 30,
+    },
+    footerBtnText: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+});
