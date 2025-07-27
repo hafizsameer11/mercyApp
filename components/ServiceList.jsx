@@ -1362,7 +1362,7 @@ const ServiceCategoryList = () => {
                                         navigation.navigate('Chat', {
                                             service: finalServiceName,
                                             userRole: 'agent',
-                                            user: 'LoggedInUser', // Replace this if you want to fetch from AsyncStorage
+                                            user: 'LoggedInUser',
                                             agent: {
                                                 name: agentData.name,
                                                 image: { uri: agentData.image_url },
