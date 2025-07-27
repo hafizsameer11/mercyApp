@@ -11,6 +11,7 @@ import {
     Image,
 } from 'react-native';
 import logo from '../../assets/logo.png';
+import { KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import icon from '../../assets/icon.png';
 import google from '../../assets/google.png';
 import facebook from '../../assets/facebook.png';
@@ -69,99 +70,110 @@ const LoginScreen = () => {
         }
 
     };
+
+
+
+
     return (
         <>
-
-            <ScrollView style={styles.container}>
-                <SafeAreaView>
-                    <StatusBar style="dark" />
-                    {/* Top Image with overlay and title */}
-                    <ImageBackground
-                        source={icon}
-                        style={[styles.imageBackground, { position: 'relative' }]}
-                        resizeMode="cover"
-                    >
-                    </ImageBackground>
-                    <View style={[styles.overlay, { position: 'absolute', top: 220, left: 20 }]}>
-
-                        <Image style={styles.logo} source={logo} />
-
-                        <ThemedText style={styles.subtitle}>Photo Editing • Manipulation • Reshaping</ThemedText>
-
-                        <View style={styles.card}>
-                            <View style={styles.socialRow}>
-                                <TouchableOpacity style={[styles.socialButton, { flexDirection: 'row', alignItems: 'center' }]}>
-                                    <Image style={{ height: 25, width: 25, marginLeft: 5 }} source={google} />
-                                    <ThemedText style={styles.titleText}>Google</ThemedText>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={[styles.socialButton, { flexDirection: 'row', alignItems: 'center' }]}>
-                                    <Image style={{ height: 25, width: 25, marginLeft: 5 }} source={facebook} />
-                                    <ThemedText style={styles.titleText}>Facebook</ThemedText>
-                                </TouchableOpacity>
-                            </View>
-                            <ThemedText style={{ marginTop: 10, color: '#B7B7B9', textAlign: 'center' }}>_________or continue with_________</ThemedText>
-                            <Text style={styles.label}>Email</Text>
-                            <View
-                                style={[
-                                    styles.inputWrapper,
-                                    isEmailFocused && { borderColor: '#992C55' }
-                                ]}
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20} // adjust if you have headers
+            >
+                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                    <ScrollView style={styles.container}>
+                        <SafeAreaView>
+                            <StatusBar style="dark" />
+                            {/* Top Image with overlay and title */}
+                            <ImageBackground
+                                source={icon}
+                                style={[styles.imageBackground, { position: 'relative' }]}
+                                resizeMode="cover"
                             >
-                                <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
-                                <TextInput
-                                    placeholder="Enter email"
-                                    value={email}
-                                    onChangeText={setEmail}
-                                    style={styles.inputWithIcon}
-                                    onFocus={() => setEmailFocused(true)}
-                                    onBlur={() => setEmailFocused(false)}
-                                    keyboardType="email-address"
-                                />
+                            </ImageBackground>
+                            <View style={[styles.overlay, { position: 'absolute', top: 220, left: 20 }]}>
+
+                                <Image style={styles.logo} source={logo} />
+
+                                <ThemedText style={styles.subtitle}>Photo Editing • Manipulation • Reshaping</ThemedText>
+
+                                <View style={styles.card}>
+                                    <View style={styles.socialRow}>
+                                        <TouchableOpacity style={[styles.socialButton, { flexDirection: 'row', alignItems: 'center' }]}>
+                                            <Image style={{ height: 25, width: 25, marginLeft: 5 }} source={google} />
+                                            <ThemedText style={styles.titleText}>Google</ThemedText>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={[styles.socialButton, { flexDirection: 'row', alignItems: 'center' }]}>
+                                            <Image style={{ height: 25, width: 25, marginLeft: 5 }} source={facebook} />
+                                            <ThemedText style={styles.titleText}>Facebook</ThemedText>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <ThemedText style={{ marginTop: 10, color: '#B7B7B9', textAlign: 'center' }}>_________or continue with_________</ThemedText>
+                                    <Text style={styles.label}>Email</Text>
+                                    <View
+                                        style={[
+                                            styles.inputWrapper,
+                                            isEmailFocused && { borderColor: '#992C55' }
+                                        ]}
+                                    >
+                                        <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
+                                        <TextInput
+                                            placeholder="Enter email"
+                                            value={email}
+                                            onChangeText={setEmail}
+                                            style={styles.inputWithIcon}
+                                            onFocus={() => setEmailFocused(true)}
+                                            onBlur={() => setEmailFocused(false)}
+                                            keyboardType="email-address"
+                                        />
+                                    </View>
+
+                                    <Text style={styles.label}>Password</Text>
+                                    <View
+                                        style={[
+                                            styles.inputWrapper,
+                                            isPasswordFocused && { borderColor: '#992C55' }
+                                        ]}
+                                    >
+                                        <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+                                        <TextInput
+                                            placeholder="Enter password"
+                                            value={password}
+                                            onChangeText={setPassword}
+                                            style={styles.inputWithIcon}
+                                            secureTextEntry={!showPassword}
+                                            onFocus={() => setPasswordFocused(true)}
+                                            onBlur={() => setPasswordFocused(false)}
+                                        />
+                                        <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                                            <Ionicons
+                                                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                                                size={20}
+                                                color="#666"
+                                            />
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    <TouchableOpacity onPress={() => navigation.navigate('ForgotPass')} style={styles.forgotLink}>
+                                        <ThemedText style={styles.forgotText}>Forgot Password?</ThemedText></TouchableOpacity>
+
+                                    <TouchableOpacity onPress={handleLogin} style={styles.loginButton}>
+                                        <ThemedText style={styles.loginButtonText}>Login</ThemedText></TouchableOpacity>
+                                    <TouchableOpacity onPress={() => navigation.navigate('Register')} style={styles.registerLink}>
+                                        <Text style={styles.registerText}>Register</Text></TouchableOpacity>
+
+                                    <ThemedText style={{ textAlign: 'center', marginTop: 25, fontSize: 12 }}>By proceeding you agree with Edit by Mercy’s &nbsp;
+                                        <Text style={{ color: '#992C55' }}>terms of use</Text> and &nbsp;
+                                        <Text style={{ color: '#992C55' }}>privacy policy</Text>
+                                    </ThemedText>
+                                </View>
+
                             </View>
-
-                            <Text style={styles.label}>Password</Text>
-                            <View
-                                style={[
-                                    styles.inputWrapper,
-                                    isPasswordFocused && { borderColor: '#992C55' }
-                                ]}
-                            >
-                                <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
-                                <TextInput
-                                    placeholder="Enter password"
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    style={styles.inputWithIcon}
-                                    secureTextEntry={!showPassword}
-                                    onFocus={() => setPasswordFocused(true)}
-                                    onBlur={() => setPasswordFocused(false)}
-                                />
-                                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                                    <Ionicons
-                                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                                        size={20}
-                                        color="#666"
-                                    />
-                                </TouchableOpacity>
-                            </View>
-
-                            <TouchableOpacity onPress={() => navigation.navigate('ForgotPass')} style={styles.forgotLink}>
-                                <ThemedText style={styles.forgotText}>Forgot Password?</ThemedText></TouchableOpacity>
-
-                            <TouchableOpacity onPress={handleLogin} style={styles.loginButton}>
-                                <ThemedText style={styles.loginButtonText}>Login</ThemedText></TouchableOpacity>
-                            <TouchableOpacity onPress={() => navigation.navigate('Register')} style={styles.registerLink}>
-                                <Text style={styles.registerText}>Register</Text></TouchableOpacity>
-
-                            <ThemedText style={{ textAlign: 'center', marginTop: 25, fontSize: 12 }}>By proceeding you agree with Edit by Mercy’s &nbsp;
-                                <Text style={{ color: '#992C55' }}>terms of use</Text> and &nbsp;
-                                <Text style={{ color: '#992C55' }}>privacy policy</Text>
-                            </ThemedText>
-                        </View>
-
-                    </View>
-                </SafeAreaView>
-            </ScrollView>
+                        </SafeAreaView>
+                    </ScrollView>
+                </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
 
         </>
 

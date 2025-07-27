@@ -1341,7 +1341,7 @@ const ServiceCategoryList = () => {
                                         alert('You must be logged in.');
                                         return;
                                     }
-
+       
                                     const response = await axios.post(API.ASSIGN_AGENT, {
                                         service_type: finalServiceName,
                                     }, {
@@ -1352,6 +1352,8 @@ const ServiceCategoryList = () => {
                                         },
                                     });
                                     console.log('Response:', response.data);
+                                    const chatId = response.data.data.chat_id;
+                                     
 
                                     const agentData = response.data.data.agent;
 
@@ -1367,6 +1369,7 @@ const ServiceCategoryList = () => {
                                                 name: agentData.name,
                                                 image: { uri: agentData.image_url },
                                             },
+                                            chat_id: response.data.data.chat_id,
                                         });
                                     } else {
                                         alert('No agent assigned.');

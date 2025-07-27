@@ -14,6 +14,11 @@ const API = {
   GET_ALL_QUICK_REPLIES: `${BASE_URL}/quick-replies`,
   UPDATE_QUICK_REPLY: (replyId) => `${BASE_URL}/quick-replies/${replyId}`,
   DELETE_QUICK_REPLY: (replyId) => `${BASE_URL}/quick-replies/${replyId}`,
+  SEND_MESSAGE: `${BASE_URL}/send-message`,
+  GET_CHAT_MESSAGES: (chatId) => `${BASE_URL}/chat/${chatId}`,
+  GET_ALL_CHATS: `${BASE_URL}/chats`,
+
+
 
 
 };
