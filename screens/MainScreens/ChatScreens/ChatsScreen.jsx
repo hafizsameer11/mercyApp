@@ -436,13 +436,12 @@ const ChatScreen = () => {
           </Animated.View>
         </View>
       </Modal>
-
-      <TouchableOpacity
+      {userRole != 'user' && <TouchableOpacity
         style={styles.fabButton}
         onPress={() => navigation.navigate('NewChat')}
       >
         <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
+      </TouchableOpacity>}
 
     </View>
   );

@@ -20,6 +20,7 @@ import FaqScreen from '../screens/MainScreens/ProfileScreens/FaqScreen';
 import NotificationsScreen from '../screens/MainScreens/NotificationsScreen';
 import AgentToAgentChatScreen from '../screens/MainScreens/ChatScreens/AgentToAgentChatScreen';
 import FlutterwaveWebView from '../components/FlutterwaveWebView';
+import ForwardMessageScreen from '../screens/MainScreens/ChatScreens/ForwardMessageScreen';
 
 
 
@@ -41,6 +42,7 @@ const AuthNavigator = () => {
       <Stack.Screen name="Chat" component={Chat} />
       <Stack.Screen name="AgentQuestionnaire" component={AgentQuestionnaire} />
       <Stack.Screen name="NewChat" component={NewChatScreen} />
+      <Stack.Screen name="ForwardChat" component={ForwardMessageScreen} />
       <Stack.Screen name="QuickReply" component={QuickRepliesScreen} />
       <Stack.Screen name="FAQ" component={FaqScreen} />
       <Stack.Screen name="Notification" component={NotificationsScreen} />
