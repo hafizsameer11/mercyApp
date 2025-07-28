@@ -1,5 +1,5 @@
 // api.config.js
-const BASE_URL = 'https://editbymercy.hmstech.xyz/api';
+export const BASE_URL = 'https://editbymercy.hmstech.xyz/api';
 
 const API = {
   LOGIN: `${BASE_URL}/auth/login`,

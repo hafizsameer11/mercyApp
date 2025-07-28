@@ -19,6 +19,7 @@ import QuickRepliesScreen from '../screens/MainScreens/ProfileScreens/QuickRepli
 import FaqScreen from '../screens/MainScreens/ProfileScreens/FaqScreen';
 import NotificationsScreen from '../screens/MainScreens/NotificationsScreen';
 import AgentToAgentChatScreen from '../screens/MainScreens/ChatScreens/AgentToAgentChatScreen';
+import FlutterwaveWebView from '../components/FlutterwaveWebView';
 
 
 
@@ -44,6 +45,8 @@ const AuthNavigator = () => {
       <Stack.Screen name="FAQ" component={FaqScreen} />
       <Stack.Screen name="Notification" component={NotificationsScreen} />
       <Stack.Screen name="AgentToAgentChat" component={AgentToAgentChatScreen} />
+      <Stack.Screen name="FlutterwaveWebView" component={FlutterwaveWebView} />
+
 
 
 

@@ -27,11 +27,9 @@ const { height } = Dimensions.get('window');
 const categories = ['All', 'Editing', 'Manipulation', 'Retouching', 'Others'];
 
 const ChatScreen = () => {
-  const userRole = 'agent';
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedLabel, setSelectedLabel] = useState('All');
   const [showLabelOptions, setShowLabelOptions] = useState(false);
-
 
   const [showStatusOptions, setShowStatusOptions] = useState(false);
   const [showDateOptions, setShowDateOptions] = useState(false);
@@ -47,7 +45,7 @@ const ChatScreen = () => {
   const [selectedChat, setSelectedChat] = useState(null);
   const [userDetail, setUserDetail] = useState({});
   const navigation = useNavigation();
-
+  const [userRole, setUserRole] = useState('');
   const labelList = [
     { label: 'New Customer', color: '#0000FF', icon: require('../../../assets/Vector (8).png') },
     { label: 'Paid Customer', color: '#00AA00', icon: require('../../../assets/Vector (11).png') },
@@ -123,6 +121,7 @@ const ChatScreen = () => {
       const userdata = await AsyncStorage.getItem('user');
       const user = JSON.parse(userdata);
       setUserDetail(user);
+      setUserRole(user.role);
     }
     getUserDetails();
   }, []);
@@ -325,7 +324,7 @@ const ChatScreen = () => {
                   <ThemedText style={styles.chatName}>{chat.name}</ThemedText>
                   {
                     userDetail && userDetail?.role == 'user' ? <ThemedText style={styles.chatName}></ThemedText>
-                      : <ThemedText style={styles.chatName2}>({chat.type =='user-agent'? 'Customer': 'Team'})</ThemedText>
+                      : <ThemedText style={styles.chatName2}>({chat.type == 'user-agent' ? 'Customer' : 'Team'})</ThemedText>
 
                   }
                   {/* <ThemedText style={styles.chatName}>{chat.name}</ThemedText> */}

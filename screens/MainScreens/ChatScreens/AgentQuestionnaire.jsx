@@ -9,149 +9,145 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import ThemedText from '../../../components/ThemedText'; // adjust path accordingly
-// import React, { useEffect, useState } from 'react';
+import ThemedText from '../../../components/ThemedText';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import API from '../../../config/api.config';
+import API, { BASE_URL } from '../../../config/api.config';
 
-// const questionnaireData = [
-//   {
-//     title: 'Face',
-//     icon: 'happy-outline',
-//     color: '#992C55',
-//     description: 'Select one or multiple options',
-//     questions: [
-//       {
-//         type: 'select',
-//         options: ['Little/natural Makeup', 'Excess Makeup', 'No Makeup'],
-//         stateKey: 'selectedFace',
-//       },
-//     ],
-//   },
-//   {
-//     title: 'Skin',
-//     icon: 'color-palette-outline',
-//     color: '#992C55',
-//     description: 'Select one or multiple options',
-//     questions: [
-//       {
-//         type: 'toggle',
-//         label: 'Maintain skin tone',
-//         stateKey: 'maintainSkinTone',
-//       },
-//       {
-//         type: 'radioGroup',
-//         label: 'Lighter',
-//         options: ['A little', 'Very light', 'Extremely light'],
-//         stateKey: 'selectedLighter',
-//       },
-//       {
-//         type: 'radioGroup',
-//         label: 'Darker',
-//         options: ['A little', 'Very Dark', 'Extremely Dark'],
-//         stateKey: 'selectedDarker',
-//       },
-//     ],
-//   },
-//   {
-//     title: 'Change in any body size',
-//     icon: 'body-outline',
-//     color: '#992C55',
-//     description: 'Select one or multiple options',
-//     questions: [
-//       { type: 'textarea', label: 'Eyes', stateKey: 'eyes' },
-//       { type: 'textarea', label: 'Lips', stateKey: 'lips' },
-//       {
-//         type: 'radioGroup',
-//         label: 'Hips',
-//         options: ['Wide', 'Very Wide', 'Extremely Wide'],
-//         stateKey: 'selectedHips',
-//       },
-//       {
-//         type: 'radioGroup',
-//         label: 'Butt',
-//         options: ['Big', 'Very Big', 'Extremely Wide'],
-//         stateKey: 'selectedButt',
-//       },
-//       { type: 'textarea', label: 'Height', stateKey: 'height' },
-//       { type: 'textarea', label: 'Nose', stateKey: 'nose' },
-//       {
-//         type: 'radioGroup',
-//         label: 'Tummy',
-//         options: ['Small', 'Very Small', 'Extremely Small'],
-//         stateKey: 'selectedTummy',
-//       },
-//       { type: 'textarea', label: 'Chin', stateKey: 'chin' },
-//       { type: 'textarea', label: 'Arm', stateKey: 'arm' },
-//       { type: 'textarea', label: 'Other Requirements', stateKey: 'other' },
-//     ],
-//   },
-// ];
+const questionnaireData = [
+  {
+    title: 'Face',
+    icon: 'happy-outline',
+    color: '#992C55',
+    description: 'Select one or multiple options',
+    questions: [
+      {
+        type: 'select',
+        options: ['Little/natural Makeup', 'Excess Makeup', 'No Makeup'],
+        stateKey: 'selectedFace',
+      },
+    ],
+  },
+  {
+    title: 'Skin',
+    icon: 'color-palette-outline',
+    color: '#992C55',
+    description: 'Select one or multiple options',
+    questions: [
+      {
+        type: 'toggle',
+        label: 'Maintain skin tone',
+        stateKey: 'maintainSkinTone',
+      },
+      {
+        type: 'radioGroup',
+        label: 'Lighter',
+        options: ['A little', 'Very light', 'Extremely light'],
+        stateKey: 'selectedLighter',
+      },
+      {
+        type: 'radioGroup',
+        label: 'Darker',
+        options: ['A little', 'Very Dark', 'Extremely Dark'],
+        stateKey: 'selectedDarker',
+      },
+    ],
+  },
+  {
+    title: 'Change in any body size',
+    icon: 'body-outline',
+    color: '#992C55',
+    description: 'Select one or multiple options',
+    questions: [
+      { type: 'textarea', label: 'Eyes', stateKey: 'eyes' },
+      { type: 'textarea', label: 'Lips', stateKey: 'lips' },
+      {
+        type: 'radioGroup',
+        label: 'Hips',
+        options: ['Wide', 'Very Wide', 'Extremely Wide'],
+        stateKey: 'selectedHips',
+      },
+      {
+        type: 'radioGroup',
+        label: 'Butt',
+        options: ['Big', 'Very Big', 'Extremely Wide'],
+        stateKey: 'selectedButt',
+      },
+      { type: 'textarea', label: 'Height', stateKey: 'height' },
+      { type: 'textarea', label: 'Nose', stateKey: 'nose' },
+      {
+        type: 'radioGroup',
+        label: 'Tummy',
+        options: ['Small', 'Very Small', 'Extremely Small'],
+        stateKey: 'selectedTummy',
+      },
+      { type: 'textarea', label: 'Chin', stateKey: 'chin' },
+      { type: 'textarea', label: 'Arm', stateKey: 'arm' },
+      { type: 'textarea', label: 'Other Requirements', stateKey: 'other' },
+    ],
+  },
+];
 
 const AgentQuestionnaire = ({ navigation, route }) => {
   const { chat_id, user_id } = route.params;
   const [state, setState] = useState({});
+  const [alredyAssigned, setAlreadyAssigned] = useState(false);
+  const [user, setUser] = useState({});
   const [focusedInput, setFocusedInput] = useState('');
-  const [questionnaireData, setQuestionnaireData] = useState([]);
 
-
+  // ✅ Fetch user role and pre-filled answers
   useEffect(() => {
-    const fetchQuestionnaire = async () => {
+    const fetchDetails = async () => {
+      const token = await AsyncStorage.getItem('token');
+      const userData = await AsyncStorage.getItem('user');
+      if (userData) setUser(JSON.parse(userData));
+      console.log("user role", JSON.parse(userData).role, "chat id", chat_id);
       try {
-        const token = await AsyncStorage.getItem('token');
-        const res = await axios.get(API.GET_QUESTIONNAIRE, {
+        const res = await axios.get(`${BASE_URL}/questionnaire/answers/${chat_id}`, {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: 'application/json',
           },
         });
-
+        console.log("questionnaire response", res.data)
         if (res.data.status === 'success') {
-          setQuestionnaireData(res.data.data);
-        } else {
-          console.log('Unexpected response format:', res.data);
+          setAlreadyAssigned(true);
+          setState(res.data.data || {});
         }
       } catch (error) {
-        console.error('Failed to fetch questionnaire:', error.message);
+        console.log('No questionnaire answers found.', error);
       }
     };
 
-    fetchQuestionnaire();
+    fetchDetails();
   }, []);
 
   const handleAssignQuestionnaire = async () => {
-  try {
-    const token = await AsyncStorage.getItem('token');
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const response = await axios.post(
+        API.ASSIGN_QUESTIONNAIRE,
+        { chat_id, user_id },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+        }
+      );
 
-    const response = await axios.post(
-      API.ASSIGN_QUESTIONNAIRE,
-      {
-        chat_id,
-        user_id,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
+      if (response.data.status === 'success') {
+        alert('✅ Questionnaire assigned successfully!');
+        navigation.goBack();
+      } else {
+        alert('Failed to assign questionnaire.');
       }
-    );
-
-    if (response.data.status === 'success') {
-      alert('✅ Questionnaire assigned successfully!');
-      navigation.goBack();
-    } else {
-      alert('Failed to assign questionnaire.');
+    } catch (error) {
+      console.error('Assign error:', error.message);
+      alert('🚫 Failed to assign questionnaire.');
     }
-  } catch (error) {
-    console.error('Assign error:', error.message);
-    alert('🚫 Failed to assign questionnaire.');
-  }
-};
-
-
+  };
 
   const handleInputChange = (key, value) => {
     setState((prev) => ({ ...prev, [key]: value }));
@@ -167,8 +163,14 @@ const AgentQuestionnaire = ({ navigation, route }) => {
         <ThemedText style={styles.title}>Questionnaire</ThemedText>
       </View>
 
+      {user?.role === 'agent' && (
+        <ThemedText style={{ textAlign: 'center', color: 'red', marginVertical: 10 }}>
+          Viewing User's Filled Questionnaire
+        </ThemedText>
+      )}
+
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* {questionnaireData.map((category, catIdx) => (
+        {questionnaireData.map((category, catIdx) => (
           <View key={catIdx} style={styles.category}>
             <View style={[styles.categoryHeader, { backgroundColor: category.color }]}>
               <View style={styles.circleNumber}>
@@ -186,6 +188,7 @@ const AgentQuestionnaire = ({ navigation, route }) => {
                     q.options.map((option, i) => (
                       <TouchableOpacity
                         key={i}
+                        disabled={user?.role === 'agent'}
                         style={[
                           styles.selectableOption,
                           state[q.stateKey] === option && styles.selectedOption,
@@ -205,6 +208,7 @@ const AgentQuestionnaire = ({ navigation, route }) => {
 
                   {q.type === 'toggle' && (
                     <TouchableOpacity
+                      disabled={user?.role === 'agent'}
                       style={[
                         styles.selectableOption,
                         state[q.stateKey] && styles.selectedOption,
@@ -223,6 +227,7 @@ const AgentQuestionnaire = ({ navigation, route }) => {
                     q.options.map((option, i) => (
                       <TouchableOpacity
                         key={i}
+                        disabled={user?.role === 'agent'}
                         style={styles.radioRow}
                         onPress={() => handleInputChange(q.stateKey, option)}
                       >
@@ -235,6 +240,7 @@ const AgentQuestionnaire = ({ navigation, route }) => {
 
                   {q.type === 'textarea' && (
                     <TextInput
+                      editable={user?.role !== 'agent'}
                       multiline
                       numberOfLines={3}
                       textAlignVertical="top"
@@ -254,131 +260,33 @@ const AgentQuestionnaire = ({ navigation, route }) => {
               ))}
             </View>
           </View>
-        ))} */}
-        {questionnaireData.map((category, catIdx) => (
-          <View key={category.id} style={styles.category}>
-            <View style={[styles.categoryHeader, { backgroundColor: '#992C55' }]}>
-              <View style={styles.circleNumber}>
-                <ThemedText style={styles.circleNumberText}>{catIdx + 1}</ThemedText>
-              </View>
-              <ThemedText style={styles.categoryTitle}>{category.title}</ThemedText>
-            </View>
-            <ThemedText style={styles.subtext}>Answer the questions below</ThemedText>
-            <View style={styles.box}>
-              {category.questions.map((q) => (
-                <View key={q.id} style={q.type !== 'dropdown' ? styles.groupBox : null}>
-                  <ThemedText style={styles.sectionSubtitle}>{q.text}</ThemedText>
-
-                  {q.type === 'dropdown' &&
-                    q.options.map((opt) => (
-                      <TouchableOpacity
-                        key={opt.id}
-                        style={[
-                          styles.selectableOption,
-                          state[`question_${q.id}`] === opt.option_text && styles.selectedOption,
-                        ]}
-                        onPress={() => handleInputChange(`question_${q.id}`, opt.option_text)}
-                      >
-                        <ThemedText
-                          style={[
-                            styles.optionText,
-                            state[`question_${q.id}`] === opt.option_text && { color: '#fff' },
-                          ]}
-                        >
-                          {opt.option_text}
-                        </ThemedText>
-                      </TouchableOpacity>
-                    ))}
-
-                  {q.type === 'radio' &&
-                    q.options.map((opt) => (
-                      <TouchableOpacity
-                        key={opt.id}
-                        style={styles.radioRow}
-                        onPress={() => handleInputChange(`question_${q.id}`, opt.option_text)}
-                      >
-                        <View style={styles.radioCircle}>
-                          {state[`question_${q.id}`] === opt.option_text && <View style={styles.radioDot} />}
-                        </View>
-                        <ThemedText style={styles.optionText}>{opt.option_text}</ThemedText>
-                      </TouchableOpacity>
-                    ))}
-
-                  {q.type === 'checkbox' &&
-                    q.options.map((opt) => {
-                      const isChecked = state[`question_${q.id}`]?.includes(opt.option_text);
-                      return (
-                        <TouchableOpacity
-                          key={opt.id}
-                          style={[
-                            styles.selectableOption,
-                            isChecked && styles.selectedOption,
-                          ]}
-
-                          onPress={() => {
-                            const current = state[`question_${q.id}`] || [];
-                            const updated = isChecked
-                              ? current.filter((o) => o !== opt.option_text)
-                              : [...current, opt.option_text];
-                            handleInputChange(`question_${q.id}`, updated);
-                          }}
-                        >
-                          <ThemedText
-                            style={[styles.optionText, isChecked && { color: '#fff' }]}
-                          >
-                            {opt.option_text}
-                          </ThemedText>
-                        </TouchableOpacity>
-                      );
-                    })}
-
-                  {q.type === 'textarea' || q.type === 'text' ? (
-                    <TextInput
-                      placeholder="Your answer"
-                      value={state[`question_${q.id}`] || ''}
-                      onChangeText={(text) => handleInputChange(`question_${q.id}`, text)}
-                      style={[
-                        styles.textarea,
-                        focusedInput === `question_${q.id}` && styles.focusedInput,
-                      ]}
-                      multiline={q.type === 'textarea'}
-                      numberOfLines={3}
-                      textAlignVertical="top"
-                      onFocus={() => setFocusedInput(`question_${q.id}`)}
-                      onBlur={() => setFocusedInput('')}
-                    />
-                  ) : null}
-
-                  {q.type === 'date' && (
-                    <TextInput
-                      placeholder="YYYY-MM-DD"
-                      value={state[`question_${q.id}`] || ''}
-                      onChangeText={(text) => handleInputChange(`question_${q.id}`, text)}
-                      style={styles.textarea}
-                    />
-                  )}
-                </View>
-              ))}
-            </View>
-          </View>
         ))}
 
-        <View style={styles.footerButtons}>
-          <TouchableOpacity style={styles.sendBtn} onPress={handleAssignQuestionnaire}>
-            <ThemedText style={styles.sendText}>Send</ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
-            <ThemedText style={styles.closeText}>Close</ThemedText>
-          </TouchableOpacity>
-        </View>
+        {user?.role == 'support' && (
+          <View style={styles.footerButtons}>
+            {
+              !alredyAssigned && (
+                <TouchableOpacity style={styles.sendBtn} onPress={handleAssignQuestionnaire}>
+                  <ThemedText style={styles.sendText}>Send</ThemedText>
+                </TouchableOpacity>
+ 
+              )
+            }
 
+            <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
+              <ThemedText style={styles.closeText}>Close</ThemedText>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
-
     </SafeAreaView>
   );
 };
 
 export default AgentQuestionnaire;
+
+// styles remain unchanged from your code
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F7' },

@@ -10,10 +10,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import questionnaireData from '../screens/MainScreens/ChatScreens/questionnaireData';
 import ThemedText from './ThemedText'; // Assuming you have a themed text component
+import submitAnswers from '../config/submitAnswers';
+// import submitAnswers from '../utils/submitAnswers'; // adjust path
 
 const { width } = Dimensions.get('window');
 
-const CategoryOneModal = ({ visible, onClose, onNext }) => {
+const CategoryOneModal = ({ visible, onClose, onNext, chat_id, user_id, onSaved }) => {
     const category = questionnaireData[0]; // First category: Face
     const [selectedOption, setSelectedOption] = useState(null);
 
@@ -27,7 +29,7 @@ const CategoryOneModal = ({ visible, onClose, onNext }) => {
                         <TouchableOpacity>
                             <ThemedText style={styles.submitBtn}>Submit</ThemedText>
                         </TouchableOpacity>
-                        <TouchableOpacity style={{ backgroundColor:"#fff", borderRadius:20, padding:4 }} onPress={onClose}>
+                        <TouchableOpacity style={{ backgroundColor: "#fff", borderRadius: 20, padding: 4 }} onPress={onClose}>
                             <Ionicons name="close" size={24} color="#000" />
                         </TouchableOpacity>
                     </View>
@@ -48,7 +50,7 @@ const CategoryOneModal = ({ visible, onClose, onNext }) => {
                                 </ThemedText>
                             </View>
                         </View>
-                        <View style={{ backgroundColor: "#fff", padding: 10, borderRadius: 10, zIndex: 1 , marginTop: -25, elevation: 1 }}>
+                        <View style={{ backgroundColor: "#fff", padding: 10, borderRadius: 10, zIndex: 1, marginTop: -25, elevation: 1 }}>
                             {/* Options */}
                             {category.questions[0]?.options?.map((option, idx) => (
 
@@ -78,7 +80,19 @@ const CategoryOneModal = ({ visible, onClose, onNext }) => {
                         <TouchableOpacity onPress={onClose} style={styles.footerBtnGray}>
                             <ThemedText style={styles.footerBtnText}>Close</ThemedText>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={onNext} style={styles.footerBtnPink}>
+                        <TouchableOpacity
+                            onPress={async () => {
+                                const answers = { selectedFace: selectedOption };
+                                const result = await submitAnswers(chat_id, user_id, answers);
+                                console.log('Submit Answers Result:', result.status);
+                                if (result.status == 'success') {
+                                    onNext();
+                                    console.log('Answers submitted successfully');
+                                    onSaved(answers); // accumulate answers in parent if needed
+                                }
+                            }}
+                            style={styles.footerBtnPink}
+                        >
                             <ThemedText style={styles.footerBtnText}>Next</ThemedText>
                         </TouchableOpacity>
                     </View>
@@ -94,6 +108,7 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#00000088',
         justifyContent: 'flex-end',
+        // paddingBottom: 20,
     },
     modalContent: {
         height: '52%',
@@ -101,7 +116,8 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 30,
         borderTopRightRadius: 30,
         padding: 20,
-       
+        // marginBottom:80
+
     },
     header: {
         flexDirection: 'row',
@@ -176,7 +192,7 @@ const styles = StyleSheet.create({
     option: {
         // borderWidth: 1,
         borderColor: '#ccc',
-        backgroundColor:"#F5EAEE",
+        backgroundColor: "#F5EAEE",
         borderRadius: 10,
         padding: 12,
         marginTop: 10,
@@ -194,7 +210,8 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     footer: {
-        marginTop: 10,
+        // marginTop: 10,
+        marginBottom:0,
         flexDirection: 'row',
         justifyContent: 'space-around',
     },

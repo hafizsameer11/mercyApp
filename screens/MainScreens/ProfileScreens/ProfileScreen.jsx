@@ -51,6 +51,20 @@ const ProfileScreen = ({ userRole = 'agent' }) => {
 
     loadUser();
   }, []);
+  const handleLogout = async () => {
+  try {
+    await AsyncStorage.removeItem('user');
+    await AsyncStorage.removeItem('token');
+    console.log('🚪 Logged out successfully');
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Login' }],
+    });
+  } catch (err) {
+    console.error('❌ Error during logout:', err.message);
+  }
+};
+
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -127,12 +141,14 @@ const ProfileScreen = ({ userRole = 'agent' }) => {
             bgColor="#Eff6fa"
           />
         )}
-        <LinkCard
-          icon={<AntDesign name="logout" size={20} color="red" />}
-          text="Logout"
-          textColor="red"
-          bgColor="#Eff6fa"
-        />
+      <LinkCard
+  onPress={handleLogout}
+  icon={<AntDesign name="logout" size={20} color="red" />}
+  text="Logout"
+  textColor="red"
+  bgColor="#Eff6fa"
+/>
+
         <LinkCard
           icon={<Ionicons name="person" size={20} color="red" />}
           text="Delete Account"

@@ -1,31 +1,67 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet } from 'react-native';
+import { View, TextInput, TouchableOpacity, Modal, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import ThemedText from './ThemedText'; // Assuming you have a themed text component
+import ThemedText from './ThemedText';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+import API, { BASE_URL } from '../config/api.config';
 
-const PaymentModal = ({ visible, onClose, onSend }) => {
+const PaymentModal = ({ visible, onClose, onSend, chatId, userId }) => {
     const [amount, setAmount] = useState('');
     const [photos, setPhotos] = useState('');
     const [editing, setEditing] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    const handleSend = () => {
-        const message = {
-            id: Date.now().toString(),
-            sender: 'agent',
-            type: 'payment',
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
-            name: 'Maleek',
-            photos,
-            category: editing,
-            amount,
-            status: 'Pending',
-        };
+    const handleSend = async () => {
+        if (!amount || !photos) {
+            Alert.alert('Validation', 'Amount and Number of Photos are required.');
+            return;
+        }
 
-        onSend(message);
-        setAmount('');
-        setPhotos('');
-        setEditing('');
-        onClose();
+        try {
+            setLoading(true);
+            const token = await AsyncStorage.getItem('token');
+
+            const response = await axios.post(
+                `${BASE_URL}/create-payment`,
+                {
+                    chat_id: chatId,
+                    total_amount: amount,
+                    no_of_photos: photos,
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        Accept: 'application/json',
+                    },
+                }
+            );
+            console.log('✅ Payment created:', response.data);
+
+            // ✅ Assume success
+            // const message = {
+            //     id: Date.now().toString(),
+            //     sender: 'agent',
+            //     type: 'payment',
+            //     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
+            //     name: 'Agent', // or pass your name here
+            //     photos,
+            //     category: editing,
+            //     amount,
+            //     status: 'Pending',
+            // };
+
+            // onSend(message); // push to chat UI
+            setAmount('');
+            setPhotos('');
+            setEditing('');
+            onClose();
+        } catch (error) {
+            console.error('❌ Payment creation failed:', error.response?.data || error.message);
+            Alert.alert('Error', 'Failed to create payment. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -58,8 +94,8 @@ const PaymentModal = ({ visible, onClose, onSend }) => {
                         value={editing}
                         onChangeText={setEditing}
                     />
-                    <TouchableOpacity style={styles.sendBtn} onPress={handleSend}>
-                        <ThemedText style={styles.sendText}>Send</ThemedText>
+                    <TouchableOpacity style={styles.sendBtn} onPress={handleSend} disabled={loading}>
+                        <ThemedText style={styles.sendText}>{loading ? 'Sending...' : 'Send'}</ThemedText>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -73,7 +109,7 @@ const styles = StyleSheet.create({
     overlay: {
         flex: 1,
         justifyContent: 'flex-end',
-       backgroundColor: '#00000090'
+        backgroundColor: '#00000090',
     },
     modal: {
         backgroundColor: '#F5F5F7',

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
     View,
@@ -71,6 +71,22 @@ const LoginScreen = () => {
 
     };
 
+useEffect(() => {
+    const checkAuth = async () => {
+        try {
+            const token = await AsyncStorage.getItem('token');
+            if (token) {
+                // Optionally validate token via API if needed
+                console.log('🔐 Token found, auto-logging in');
+                navigation.replace('Main');
+            }
+        } catch (e) {
+            console.log('❌ Error checking token:', e.message);
+        }
+    };
+
+    checkAuth();
+}, []);
 
 
 
@@ -79,10 +95,14 @@ const LoginScreen = () => {
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={{ flex: 1 }}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20} // adjust if you have headers
             >
                 <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                    <ScrollView style={styles.container}>
+                    <ScrollView
+                        style={styles.container}
+                        contentContainerStyle={{ flexGrow: 1 }}
+                        keyboardShouldPersistTaps="handled"
+                    >
+
                         <SafeAreaView>
                             <StatusBar style="dark" />
                             {/* Top Image with overlay and title */}
@@ -92,7 +112,7 @@ const LoginScreen = () => {
                                 resizeMode="cover"
                             >
                             </ImageBackground>
-                            <View style={[styles.overlay, { position: 'absolute', top: 220, left: 20 }]}>
+<View style={styles.overlay}>
 
                                 <Image style={styles.logo} source={logo} />
 
@@ -217,20 +237,20 @@ const styles = StyleSheet.create({
         height: 320,
         width: '100%',
     },
-    overlay: {
-        flex: 1,
-        width: '90%',
-        backgroundColor: '#992C55',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        borderBottomLeftRadius: 26,
-        borderBottomRightRadius: 26,
-        elevation: 10,
+  overlay: {
+    marginTop: -100, // adjust based on how much overlap you want
+    width: '90%',
+    backgroundColor: '#992C55',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    elevation: 10,
+    alignSelf: 'center',
+},
 
-
-    },
     titleText: {
         fontSize: 16,
         color: '#000',

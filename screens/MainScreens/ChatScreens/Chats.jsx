@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-// import questionnaireData from './questionnaireData';
+import questionnaireData from './questionnaireData';
 import EmojiSelector from 'react-native-emoji-selector';
 import { RecordingButton } from '../../../components/RecordingButton';
 import VoiceRecorderModal from '../../../components/VoiceRecorderModal';
@@ -12,7 +12,7 @@ import { Pressable } from 'react-native';
 import ThemedText from '../../../components/ThemedText';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import API from '../../../config/api.config';
+import API, { BASE_URL } from '../../../config/api.config';
 
 // import EmojiSelector from 'react-native-emoji-selector';
 
@@ -92,15 +92,16 @@ const ChatScreen = () => {
     const [questionnaireVisible, setQuestionnaireVisible] = useState(false);
 
     const navigation = useNavigation();
-    const { userRole, agent, service, messages: initialMessages = [] } = useRoute().params;
-
+    const { agent, service, messages: initialMessages = [] } = useRoute().params;
+    // console.log("user role is ", userRole)
+    const [userRole, setUserRole] = useState('');
 
     const [messages, setMessages] = useState(initialMessages.length > 0 ? initialMessages : [
     ]);
     const [inputMessage, setInputMessage] = useState('');
     const flatListRef = useRef();
     const [modalVisible, setModalVisible] = useState(false);
-
+    const [orderDetails, setOrderDetails] = useState({});
     // image selection logic
     const pickImage = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({
@@ -174,7 +175,7 @@ const ChatScreen = () => {
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
             setMessages(prev => [...prev, {
                 id: Date.now().toString(),
-                sender: userRole,
+                sender: user?.id,
                 type: 'document',
                 document: result.uri,
                 name: result.name,
@@ -196,8 +197,6 @@ const ChatScreen = () => {
         setEditIndex(null);
         setAddReplyModalVisible(false);
     };
-
-
 
     const sendMessage = async () => {
         if (!inputMessage.trim()) return;
@@ -246,7 +245,6 @@ const ChatScreen = () => {
             alert(error.response?.data?.message || 'Failed to send message');
         }
     };
-
     const sendQuestionnaire = async (chat_id, user_id) => {
         try {
             const token = await AsyncStorage.getItem('token');
@@ -267,11 +265,11 @@ const ChatScreen = () => {
             console.log("✅ Questionnaire assigned:", response.data);
             alert("✅ Questionnaire sent successfully.");
         } catch (error) {
+            console.log("error ");
             console.error("❌ Failed to assign questionnaire:", error.response?.data || error.message);
             alert("❌ Failed to send questionnaire.");
         }
     };
-
 
     const fetchMessages = async () => {
         try {
@@ -287,7 +285,9 @@ const ChatScreen = () => {
             if (response.data.status === 'success') {
                 const fetchedMessages = response?.data?.data?.messages;
                 console.log("feteched messages", fetchMessages)
-
+                const order = response.data.data.order;
+                console.log("order", order);
+                setOrderDetails(order);
                 const formatted = fetchedMessages?.map((msg) => ({
                     id: msg.id,
                     sender: msg.sender_id,
@@ -317,11 +317,14 @@ const ChatScreen = () => {
             const userData = await AsyncStorage.getItem("user");
             if (userData) {
                 setUser(JSON.parse(userData));
+                setUserRole(JSON.parse(userData).role);
+                console.log("user role", JSON.parse(userData).role);
             }
         };
 
         getUserDetail();
     }, []);
+
 
     const sendFileMessage = async ({ fileUri, fileName, fileType, messageType = 'file', duration = '' }) => {
         try {
@@ -358,38 +361,6 @@ const ChatScreen = () => {
             return false;
         }
     };
-
-    // const sendQuestionnaire = () => {
-    //     const time = new Date().toLocaleTimeString([], {
-    //         hour: '2-digit',
-    //         minute: '2-digit',
-    //         hour12: true,
-    //     });
-
-    //     const newMsg = {
-    //         id: Date.now().toString(),
-    //         sender: 'agent',
-    //         type: 'questionnaire',
-    //         text: 'Please fill out this questionnaire form.',
-    //         time,
-    //         categories: questionnaireData.map(item => item.title),
-    //     };
-
-    //     const updatedMessages = [...messages, newMsg];
-    //     setMessages(updatedMessages);
-    //     setModalVisible(false);
-
-    //     // Simulate sending to customer by navigating with updated messages
-    //     navigation.navigate('Chat', {
-    //         userRole: 'customer',
-    //         user,
-    //         agent,
-    //         service,
-    //         initialMessages: updatedMessages,
-    //     });
-    // };
-
-    // recording logic
     const startRecording = async () => {
         try {
 
@@ -436,11 +407,6 @@ const ChatScreen = () => {
         }
     };
 
-
-
-
-
-
     const stopRecording = async () => {
         if (!recordingInstance) return;
 
@@ -464,13 +430,6 @@ const ChatScreen = () => {
             setIsRecording(false);
         }
     };
-
-
-
-
-
-
-
     const sendAudioMessage = async (uri) => {
         try {
             const token = await AsyncStorage.getItem('token');
@@ -518,7 +477,6 @@ const ChatScreen = () => {
             alert('Failed to send voice message');
         }
     };
-
     const playAudio = async (uri) => {
         try {
             const playAudio = async (uri) => {
@@ -542,13 +500,45 @@ const ChatScreen = () => {
     };
 
 
+    const [progressMap, setProgressMap] = useState({});
+    const [progressData, setProgressData] = useState({ progress: 0, completed_sections: 0 });
+    useEffect(() => {
+        const fetchProgress = async () => {
+            try {
+                const token = await AsyncStorage.getItem('token');
+                //   if (!token || !chat_id) return;
+
+                const res = await axios.get(`${BASE_URL}/questionnaire/progress/${chat_id}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                console.log("progres response", res.data)
+                if (res?.data?.status === 'success') {
+                    setProgressData(res.data); // Store once for current chat
+                }
+            } catch (err) {
+                console.error(`Error fetching progress for chat ${chat_id}`, err);
+            }
+        };
+
+        fetchProgress();
+    }, []);
+
+    const launchPayment = () => {
+        navigation.navigate('FlutterwaveWebView', {
+            amount: parseFloat(orderDetails?.total_amount),
+            order_id: orderDetails?.id,
+            chat_id: chat_id,
+        });
+    };
+
     const renderMessage = ({ item }) => {
+
         const isMyMessage = item.sender === user?.id;
         if (item.type === 'image') {
             const group = groupedImages[item.groupId];
             if (!group || group[0].id !== item.id) return null; // Render group only once
             return (
-                <View style={[styles.msgRow, { marginBottom: 20 }, item.sender === userRole ? styles.rightMsg : styles.leftMsg]}>
+                <View style={[styles.msgRow, { marginBottom: 20 }, item.sender === user?.id ? styles.rightMsg : styles.leftMsg]}>
                     <View style={{ paddingBottom: 20, backgroundColor: isMyMessage ? '#992C55' : '#E7E7E7', borderRadius: 10, }}>
                         <TouchableOpacity onPress={() => { setPreviewImages(group); setImagePreviewVisible(true); }}>
                             <View style={[styles.imageGroupWrapper, getImageGroupStyle(group.length)]}>
@@ -589,40 +579,48 @@ const ChatScreen = () => {
                 </View>
             );
         }
-
-
-
         if (item.type === 'payment') {
             return (
-                <View style={[styles.msgRow, item.sender === userRole ? styles.rightMsg : styles.leftMsg]}>
+                <View style={[styles.msgRow, item.sender === user?.id ? styles.rightMsg : styles.leftMsg]}>
                     <View style={styles.paymentCard}>
                         <View style={styles.paymentHeader}>
                             <Ionicons name="card-outline" size={20} color="#fff" />
                             <ThemedText style={styles.paymentTitle}>Payment Order</ThemedText>
                             <View style={styles.paymentStatus}>
-                                <ThemedText style={styles.paymentStatusText}>{item.status}</ThemedText>
+                                <ThemedText
+                                    style={[
+                                        styles.paymentStatusText,
+                                        orderDetails?.payment_status === 'success' && { color: 'green' },
+                                    ]}
+                                >
+                                    {orderDetails?.payment_status}
+                                </ThemedText>
                             </View>
+
                         </View>
 
                         <View style={{ padding: 16, backgroundColor: '#fff', borderRadius: 10, elevation: 1, zIndex: 1, marginTop: -20 }}>
-                            <View style={[styles.paymentRow, { borderTopRightRadius: 10, borderTopLeftRadius: 10 }]}><Text style={styles.label}>Name</Text><Text>{item.name}</Text></View>
-                            <View style={styles.paymentRow}><Text style={styles.label}>No of photos</Text><Text>{item.photos}</Text></View>
-                            <View style={styles.paymentRow}><Text style={styles.label}>Category</Text><Text>{item.category}</Text></View>
-                            <View style={[styles.paymentRow, { borderBottomRightRadius: 10, borderBottomLeftRadius: 10 }]}><Text style={styles.label}>Amount</Text><Text style={{ fontWeight: 'bold' }}>₦{parseInt(item.amount).toLocaleString()}</Text></View>
+                            {/* <View style={[styles.paymentRow, { borderTopRightRadius: 10, borderTopLeftRadius: 10 }]}><Text style={styles.label}>Name</Text><Text>{item.name}</Text></View> */}
+                            <View style={styles.paymentRow}><Text style={styles.label}>No of photos</Text><Text>{orderDetails?.no_of_photos}</Text></View>
+                            <View style={styles.paymentRow}><Text style={styles.label}>Category</Text><Text>{orderDetails?.service_type}</Text></View>
+                            <View style={[styles.paymentRow, { borderBottomRightRadius: 10, borderBottomLeftRadius: 10 }]}><Text style={styles.label}>Amount</Text><Text style={{ fontWeight: 'bold' }}>₦{parseInt(orderDetails?.total_amount).toLocaleString()}</Text></View>
                         </View>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 10 }}>
-                            {userRole === 'customer' ? (
+                            {userRole === 'user' && orderDetails?.payment_status !== 'success' && (
                                 <TouchableOpacity
+                                    onPress={launchPayment}
                                     style={{
                                         backgroundColor: '#992C55',
                                         paddingVertical: 14,
-                                        paddingHorizontal: 140,
+                                        paddingHorizontal: 100,
                                         borderRadius: 30,
                                     }}
                                 >
                                     <ThemedText style={{ color: '#fff', fontWeight: '600' }}>Make Payment</ThemedText>
                                 </TouchableOpacity>
-                            ) : (
+                            )}
+
+                            {userRole === 'support' && orderDetails?.payment_status !== 'success' && (
                                 <>
                                     <TouchableOpacity
                                         style={{
@@ -634,6 +632,7 @@ const ChatScreen = () => {
                                     >
                                         <ThemedText style={{ color: '#fff', fontWeight: '600' }}>Refresh</ThemedText>
                                     </TouchableOpacity>
+
                                     <TouchableOpacity
                                         style={{
                                             backgroundColor: '#ccc',
@@ -649,12 +648,12 @@ const ChatScreen = () => {
                         </View>
 
 
+
                     </View>
 
                 </View>
             );
         }
-
         if (item.type === 'questionnaire') {
             return (
                 <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg]}>
@@ -662,9 +661,12 @@ const ChatScreen = () => {
                         <View style={styles.qHeader}>
                             <ThemedText style={styles.qHeaderTitle}>📋 Questionnaire</ThemedText>
                             <View style={styles.statusBadge}>
-                                <ThemedText style={styles.statusBadgeText}>Unanswered</ThemedText>
+                                <ThemedText style={styles.statusBadgeText}>
+                                    {progressData.progress === 100 ? 'Completed' : `${progressData.progress}%`}
+                                </ThemedText>
                             </View>
                         </View>
+
                         <ThemedText style={styles.qHeaderDesc}>
                             It consists of 3 parts, select the options that best suit the service you want
                         </ThemedText>
@@ -684,27 +686,44 @@ const ChatScreen = () => {
                                         }}
                                     >
                                         <ThemedText style={{ color: '#333', fontSize: 14 }}>{cat}</ThemedText>
-                                        <ThemedText style={{ color: '#000' }}>-</ThemedText>
+                                        <ThemedText style={{ color: '#000' }}>
+                                            {i === 0 && progressData.completed_sections >= 1 ? '✅' : null}
+                                            {i === 1 && progressData.completed_sections >= 4 ? '✅' : null}
+                                            {i === 2 && progressData.completed_sections >= 14 ? '✅' : null}
+                                            {!((i === 0 && progressData.completed_sections >= 1) ||
+                                                (i === 1 && progressData.completed_sections >= 4) ||
+                                                (i === 2 && progressData.completed_sections >= 14)) && '-'}
+                                        </ThemedText>
                                     </View>
                                 ))}
                             </View>
                         </View>
 
                         <View style={styles.qBtnRow}>
-                            {userRole === 'customer' && (
+                            {user?.role === 'user' && progressData.progress < 100 && (
+
                                 <TouchableOpacity
                                     style={styles.qStartBtn}
                                     onPress={() => {
-                                        setCurrentCategoryIndex(0);
+                                        if (progressData.completed_sections < 1) {
+                                            setCurrentCategoryIndex(0);
+                                        } else if (progressData.completed_sections < 4) {
+                                            setCurrentCategoryIndex(1);
+                                        } else {
+                                            setCurrentCategoryIndex(2);
+                                        }
                                         setQuestionnaireVisible(true);
                                     }}
                                 >
                                     <ThemedText style={styles.qStartBtnText}>Start</ThemedText>
                                 </TouchableOpacity>
                             )}
-                            <TouchableOpacity style={styles.qCloseBtn}>
-                                <ThemedText style={styles.qCloseBtnText}>Close</ThemedText>
-                            </TouchableOpacity>
+                            {user?.role == 'support' && (
+                                <TouchableOpacity style={styles.qCloseBtn}>
+                                    <ThemedText style={styles.qCloseBtnText}>Close</ThemedText>
+                                </TouchableOpacity>
+                            )}
+
                         </View>
                     </View>
                 </View>
@@ -722,7 +741,7 @@ const ChatScreen = () => {
     };
 
     return (
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
             {/* <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}> */}
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                 <View style={styles.container}>
@@ -736,29 +755,11 @@ const ChatScreen = () => {
                             <ThemedText style={styles.agentName}>{agent.name}</ThemedText>
                             <ThemedText style={styles.online}>Online</ThemedText>
                         </View>
-                        {userRole === 'agent' && (
+                        {userRole === 'support' && (
                             <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginLeft: 'auto', marginRight: 10 }}>
                                 <Ionicons name="ellipsis-vertical" size={22} color="#fff" />
                             </TouchableOpacity>
                         )}
-                    </View>
-
-                    {/* Order Card */}
-                    <View style={styles.orderCardWrapper}>
-                        <View style={styles.orderCardHeader}>
-                            <Ionicons name="bookmarks-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
-                            <ThemedText style={styles.orderCardHeaderText}>New Order</ThemedText>
-                        </View>
-                        <View style={styles.orderCardBody}>
-                            <View style={styles.orderInfoRow1}>
-                                <ThemedText style={styles.orderLabel}>Name</ThemedText>
-                                <ThemedText style={styles.orderValue}>{user?.name}</ThemedText>
-                            </View>
-                            <View style={styles.orderInfoRow2}>
-                                <ThemedText style={styles.orderLabel}>Order type</ThemedText>
-                                <ThemedText style={styles.orderValue}>{service}</ThemedText>
-                            </View>
-                        </View>
                     </View>
 
                     <FlatList
@@ -771,6 +772,27 @@ const ChatScreen = () => {
                         scrollEnabled={true}
                         keyboardShouldPersistTaps="handled"
                         style={{ flex: 1 }}
+                        ListHeaderComponent={
+                            <>
+                                {/* Order Card */}
+                                <View style={styles.orderCardWrapper}>
+                                    <View style={styles.orderCardHeader}>
+                                        <Ionicons name="bookmarks-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
+                                        <ThemedText style={styles.orderCardHeaderText}>New Order</ThemedText>
+                                    </View>
+                                    <View style={styles.orderCardBody}>
+                                        <View style={styles.orderInfoRow1}>
+                                            <ThemedText style={styles.orderLabel}>Name</ThemedText>
+                                            <ThemedText style={styles.orderValue}>{user?.name}</ThemedText>
+                                        </View>
+                                        <View style={styles.orderInfoRow2}>
+                                            <ThemedText style={styles.orderLabel}>Order type</ThemedText>
+                                            <ThemedText style={styles.orderValue}>{service}</ThemedText>
+                                        </View>
+                                    </View>
+                                </View>
+                            </>
+                        }
                     />
                     {showEmojiPicker && (
                         <View style={{ height: 250 }}>
@@ -821,7 +843,7 @@ const ChatScreen = () => {
 
                     {/* Modals */}
                     {/* Agent options Modal */}
-                    {userRole === 'agent' && (
+                    {userRole === 'support' && (
                         <Modal visible={modalVisible} animationType="slide" transparent>
                             <View style={[styles.modalOverlay, { backgroundColor: '#00000090', }]}>
                                 <View style={[styles.agentOptionsModal, { backgroundColor: "#F5F5F7" }]}>
@@ -900,13 +922,18 @@ const ChatScreen = () => {
                         </Modal>
                     )}
                     {/* Fill Questionaire Modal */}
-                    {userRole === 'customer' && (
+                    {userRole == 'user' && (
                         <Modal visible={questionnaireVisible} transparent animationType="slide">
-                            <View style={[styles.agentOptionsModal, { maxHeight: '80%' }]}>
+                            <View style={[styles.agentOptionsModal, { maxHeight: '100%' }]}>
                                 {currentCategoryIndex === 0 && (
                                     <CategoryOneModal questions={questionnaireData[currentCategoryIndex]?.questions}
                                         onClose={() => setQuestionnaireVisible(false)}
-                                        onNext={() => setCurrentCategoryIndex(prev => prev + 1)}
+                                        onNext={() => {
+                                            console.log("on next is called", currentCategoryIndex)
+                                            setCurrentCategoryIndex(prev => prev + 1)
+                                        }}
+                                        chat_id={chat_id}
+                                        user_id={orderDetails?.user_id}
                                     />
                                 )}
                                 {currentCategoryIndex === 1 && (
@@ -915,6 +942,9 @@ const ChatScreen = () => {
                                         onClose={() => setQuestionnaireVisible(false)}
                                         onPrevious={() => setCurrentCategoryIndex(0)}
                                         onNext={() => setCurrentCategoryIndex(2)}
+                                        //   onSaved={(answers) => setCombinedAnswers(prev => ({ ...prev, ...answers }))}
+                                        chat_id={chat_id}
+                                        user_id={orderDetails?.user_id}
                                     />
                                 )}
                                 {currentCategoryIndex === 2 && (
@@ -922,6 +952,8 @@ const ChatScreen = () => {
                                         questions={questionnaireData[currentCategoryIndex]?.questions}
                                         questionIndex={currentQuestionIndex}
                                         setQuestionIndex={setCurrentQuestionIndex}
+                                        chat_id={chat_id}
+                                        user_id={orderDetails?.user_id}
                                         onPrevious={() => {
                                             setCurrentCategoryIndex(1);
                                             setCurrentQuestionIndex(0);
@@ -948,12 +980,15 @@ const ChatScreen = () => {
                     <PaymentModal
                         visible={paymentModalVisible}
                         onClose={() => setPaymentModalVisible(false)}
+                        chatId={chat_id}
+                        userId={user?.id}
                         onSend={(paymentMessage) => {
                             const updatedMessages = [...messages, paymentMessage];
                             setMessages(updatedMessages);
                             setPaymentModalVisible(false);
                         }}
                     />
+
                     <Modal visible={viewNotesVisible} animationType="slide" transparent>
                         <View style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
                             <View style={[styles.agentOptionsModal, { backgroundColor: '#F5F5F7', maxHeight: '80%' }]}>
@@ -1249,7 +1284,6 @@ const ChatScreen = () => {
         </KeyboardAvoidingView>
     );
 };
-
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff' },
     topBar: {
@@ -1261,7 +1295,7 @@ const styles = StyleSheet.create({
     agentName: { color: '#fff', fontSize: 16, fontWeight: '700' },
     online: { color: 'lightgreen', fontSize: 12 },
 
-    orderCardWrapper: { margin: 16 },
+    orderCardWrapper: { margin: 8 },
     orderCardHeader: {
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: '#992C55',
@@ -1337,8 +1371,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: 16,
         paddingBottom: 30,
-    },
+        // marginBottom:60,
+        zIndex: 1
 
+    },
     modalOverlay: {
         flex: 1,
 
@@ -1403,6 +1439,7 @@ const styles = StyleSheet.create({
     questionnaireCard: {
         borderRadius: 12,
         padding: 14,
+        // marginBottom:90,
         maxWidth: '100%',
 
     },

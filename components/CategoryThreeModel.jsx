@@ -1,381 +1,140 @@
-// import React, { useState } from 'react';
-// import {
-//   View,
-//   Text,
-//   Modal,
-//   TouchableOpacity,
-//   TextInput,
-//   StyleSheet,
-// } from 'react-native';
-// import { Ionicons } from '@expo/vector-icons';
-// import questionnaireData from '../screens/MainScreens/ChatScreens/questionnaireData';
-
-// const CategoryThreeModal = ({ visible, onClose, onDone, onPrevious }) => {
-//   const category = questionnaireData[2]; // Change in body size
-//   const questions = category.questions;
-//   const [currentIndex, setCurrentIndex] = useState(0);
-//   const [answers, setAnswers] = useState({});
-
-//   const currentQuestion = questions[currentIndex];
-
-//   const handleNext = () => {
-//     if (currentIndex < questions.length - 1) {
-//       setCurrentIndex(currentIndex + 1);
-//     } else {
-//       onDone(answers);
-//     }
-//   };
-
-//   const handlePrevious = () => {
-//     if (currentIndex > 0) {
-//       setCurrentIndex(currentIndex - 1);
-//     } else {
-//       onPrevious();
-//     }
-//   };
-
-//   const handleChange = (value) => {
-//     setAnswers({ ...answers, [currentQuestion.stateKey]: value });
-//   };
-
-//   const handleOptionPress = (option) => {
-//     handleChange(option);
-//   };
-
-//   return (
-//     <Modal visible={visible} animationType="slide" transparent>
-//       <View style={styles.modalOverlay}>
-//         <View style={styles.modalContent}>
-//           {/* Header */}
-//           <View style={styles.header}>
-//             <Text style={styles.title}>Questions</Text>
-//             <TouchableOpacity onPress={onClose}>
-//               <Ionicons name="close" size={24} color="#000" />
-//             </TouchableOpacity>
-//           </View>
-
-//           {/* Progress Bar */}
-//           <View style={styles.progressBar}>
-//             <View
-//               style={[styles.progressFill, { width: `${((currentIndex + 1) / questions.length) * 100}%` }]}
-//             />
-//           </View>
-
-//           {/* Question Card */}
-//           <View style={styles.card}>
-//             <View style={styles.cardHeader}>
-//               <Text style={styles.circle}>{3}</Text>
-//               <View>
-//                 <Text style={styles.cardTitle}>{category.title}</Text>
-//                 <Text style={styles.cardSubtitle}>{currentQuestion.label}</Text>
-//               </View>
-//             </View>
-
-//             {currentQuestion.type === 'textarea' ? (
-//               <TextInput
-//                 multiline
-//                 placeholder={`Enter your answer for ${currentQuestion.label}`}
-//                 style={styles.textInput}
-//                 value={answers[currentQuestion.stateKey] || ''}
-//                 onChangeText={handleChange}
-//               />
-//             ) : (
-//               currentQuestion.options.map((option, idx) => (
-//                 <TouchableOpacity
-//                   key={idx}
-//                   style={[
-//                     styles.option,
-//                     answers[currentQuestion.stateKey] === option && styles.optionSelected,
-//                   ]}
-//                   onPress={() => handleOptionPress(option)}
-//                 >
-//                   <Text
-//                     style={[
-//                       styles.optionText,
-//                       answers[currentQuestion.stateKey] === option && styles.optionTextSelected,
-//                     ]}
-//                   >
-//                     {option}
-//                   </Text>
-//                 </TouchableOpacity>
-//               ))
-//             )}
-//           </View>
-
-//           {/* Footer */}
-//           <View style={styles.footer}>
-//             <TouchableOpacity onPress={handlePrevious} style={styles.footerBtnGray}>
-//               <Text style={styles.footerBtnText}>Previous</Text>
-//             </TouchableOpacity>
-//             <TouchableOpacity onPress={handleNext} style={styles.footerBtnPink}>
-//               <Text style={styles.footerBtnText}>
-//                 {currentIndex === questions.length - 1 ? 'Done' : 'Next'}
-//               </Text>
-//             </TouchableOpacity>
-//           </View>
-//         </View>
-//       </View>
-//     </Modal>
-//   );
-// };
-
-// export default CategoryThreeModal;
-
-// const styles = StyleSheet.create({
-//   modalOverlay: {
-//     flex: 1,
-//     backgroundColor: '#00000088',
-//     justifyContent: 'flex-end',
-//   },
-//   modalContent: {
-//     height: '90%',
-//     backgroundColor: '#fff',
-//     borderTopLeftRadius: 20,
-//     borderTopRightRadius: 20,
-//     padding: 20,
-//   },
-//   header: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     alignItems: 'center',
-//   },
-//   title: {
-//     fontSize: 18,
-//     fontWeight: 'bold',
-//   },
-//   progressBar: {
-//     height: 5,
-//     backgroundColor: '#f1f1f1',
-//     borderRadius: 4,
-//     marginVertical: 15,
-//   },
-//   progressFill: {
-//     height: '100%',
-//     backgroundColor: '#992c55',
-//     borderRadius: 4,
-//   },
-//   card: {
-//     backgroundColor: '#f9f9f9',
-//     borderRadius: 16,
-//     padding: 16,
-//     marginTop: 10,
-//     flex: 1,
-//   },
-//   cardHeader: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     marginBottom: 15,
-//   },
-//   circle: {
-//     backgroundColor: '#992c55',
-//     color: '#fff',
-//     borderRadius: 20,
-//     width: 30,
-//     height: 30,
-//     textAlign: 'center',
-//     lineHeight: 30,
-//     fontWeight: 'bold',
-//     marginRight: 10,
-//   },
-//   cardTitle: {
-//     fontSize: 16,
-//     fontWeight: 'bold',
-//   },
-//   cardSubtitle: {
-//     fontSize: 13,
-//     color: '#666',
-//   },
-//   textInput: {
-//     backgroundColor: '#fff',
-//     borderColor: '#ccc',
-//     borderWidth: 1,
-//     borderRadius: 10,
-//     padding: 10,
-//     minHeight: 80,
-//     textAlignVertical: 'top',
-//   },
-//   option: {
-//     borderWidth: 1,
-//     borderColor: '#ccc',
-//     borderRadius: 10,
-//     padding: 12,
-//     marginTop: 10,
-//   },
-//   optionSelected: {
-//     backgroundColor: '#992c55',
-//     borderColor: '#992c55',
-//   },
-//   optionText: {
-//     fontSize: 15,
-//     color: '#333',
-//   },
-//   optionTextSelected: {
-//     color: '#fff',
-//     fontWeight: 'bold',
-//   },
-//   footer: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     marginTop: 20,
-//   },
-//   footerBtnGray: {
-//     paddingVertical: 12,
-//     paddingHorizontal: 20,
-//     backgroundColor: '#ddd',
-//     borderRadius: 10,
-//   },
-//   footerBtnPink: {
-//     paddingVertical: 12,
-//     paddingHorizontal: 20,
-//     backgroundColor: '#992c55',
-//     borderRadius: 10,
-//   },
-//   footerBtnText: {
-//     color: '#fff',
-//     fontWeight: '600',
-//   },
-// });
 import React, { useState } from 'react';
 import {
-    View,
-    Text,
-    Modal,
-    TouchableOpacity,
-    TextInput,
-    StyleSheet,
-    Dimensions,
+  View,
+  Modal,
+  TouchableOpacity,
+  TextInput,
+  StyleSheet,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import questionnaireData from '../screens/MainScreens/ChatScreens/questionnaireData';
 import ThemedText from './ThemedText';
+import submitAnswers from '../config/submitAnswers';
 
 const { width } = Dimensions.get('window');
 
-const CategoryThreeModal = ({ visible, onClose, onDone, onPrevious }) => {
-    const category = questionnaireData[2];
-    const questions = category.questions;
-    const [currentIndex, setCurrentIndex] = useState(0);
-    const [answers, setAnswers] = useState({});
+const CategoryThreeModal = ({ visible, onClose, onDone, onPrevious, chat_id, user_id }) => {
+  const category = questionnaireData[2];
+  const questions = category.questions;
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [answers, setAnswers] = useState({});
 
-    const currentQuestion = questions[currentIndex];
+  const currentQuestion = questions[currentIndex];
 
-    const handleNext = () => {
-        if (currentIndex < questions.length - 1) {
-            setCurrentIndex(currentIndex + 1);
-        } else {
-            onDone(answers);
-        }
-    };
+  const handleChange = (value) => {
+    setAnswers({ ...answers, [currentQuestion.stateKey]: value });
+  };
 
-    const handlePrevious = () => {
-        if (currentIndex > 0) {
-            setCurrentIndex(currentIndex - 1);
-        } else {
-            onPrevious();
-        }
-    };
+  const handleOptionPress = (option) => {
+    handleChange(option);
+  };
 
-    const handleChange = (value) => {
-        setAnswers({ ...answers, [currentQuestion.stateKey]: value });
-    };
+  const handleNext = async () => {
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    } else {
+      const result = await submitAnswers(chat_id, user_id, answers);
+      if (result.status === 'success') {
+        onDone(); // Close modal or show completion
+      }
+    }
+  };
 
-    const handleOptionPress = (option) => {
-        handleChange(option);
-    };
+  const handlePrevious = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    } else {
+      onPrevious(); // Go back to CategoryTwoModal
+    }
+  };
 
-    return (
-        <Modal visible={visible} animationType="slide" transparent>
-            <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                    {/* Header */}
-                    <View style={styles.header}>
-                        <ThemedText style={styles.title}>Questions</ThemedText>
-                        <TouchableOpacity>
-                            <ThemedText style={styles.submitBtn}>Submit</ThemedText>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={{ backgroundColor: "#fff", borderRadius: 20, padding: 4 }} onPress={onClose}>
-                            <Ionicons name="close" size={24} color="#000" />
-                        </TouchableOpacity>
-                    </View>
+  return (
+    <Modal visible={visible} animationType="slide" transparent>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          {/* Header */}
+          <View style={styles.header}>
+            <ThemedText style={styles.title}>Questions</ThemedText>
+            <TouchableOpacity>
+              <ThemedText style={styles.submitBtn}>Submit</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ backgroundColor: "#fff", borderRadius: 20, padding: 4 }} onPress={onClose}>
+              <Ionicons name="close" size={24} color="#000" />
+            </TouchableOpacity>
+          </View>
 
-                    {/* Progress */}
-                    <View style={styles.progressBar}>
-                        <View
-                            style={[
-                                styles.progressFill,
-                                { width: `${((currentIndex + 1) / questions.length) * 100}%` }
-                            ]}
-                        />
-                    </View>
+          {/* Progress */}
+          <View style={styles.progressBar}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${((currentIndex + 1) / questions.length) * 100}%` }
+              ]}
+            />
+          </View>
 
-                    {/* Card */}
-                    <View style={styles.card}>
-                        <View style={styles.cardHeader}>
-                            <ThemedText style={styles.circle}>{3}</ThemedText>
-                            <View>
-                                <ThemedText style={styles.cardTitle}>{category.title}</ThemedText>
-                                <ThemedText style={styles.cardSubtitle}>This part is split into 9 sections , you can skip unrelated parts </ThemedText>
-                            </View>
-                        </View>
-
-                        <View style={{ backgroundColor: "#fff", padding: 10, borderRadius: 10, zIndex: 1, marginTop: -25, elevation: 1 }}>
-                            <ThemedText >{currentQuestion.label}</ThemedText>
-                            {currentQuestion.type === 'textarea' ? (
-                                <View style={{ backgroundColor: "#F5EAEE", borderRadius: 10, marginTop: 10, padding: 12 }}>
-
-                                    <TextInput
-                                        multiline
-                                        placeholder={`Specify your details`}
-                                        style={styles.textInput}
-                                        value={answers[currentQuestion.stateKey] || ''}
-                                        onChangeText={handleChange}
-                                    />
-                                </View>
-                            ) : (
-
-                                currentQuestion.options.map((option, idx) => (
-
-
-                                    <TouchableOpacity
-                                        key={idx}
-                                        style={[
-                                            styles.option,
-                                            answers[currentQuestion.stateKey] === option && styles.optionSelected
-                                        ]}
-                                        onPress={() => handleOptionPress(option)}
-                                    >
-
-
-                                        <ThemedText
-                                            style={[
-                                                styles.optionText,
-                                                answers[currentQuestion.stateKey] === option && styles.optionTextSelected
-                                            ]}
-                                        >
-                                            {option}
-                                        </ThemedText>
-                                    </TouchableOpacity>
-                                ))
-
-                            )}
-                        </View>
-                    </View>
-
-                    {/* Footer */}
-                    <View style={styles.footer}>
-                        <TouchableOpacity onPress={handlePrevious} style={styles.footerBtnGray}>
-                            <ThemedText style={styles.footerBtnText}>Previous</ThemedText>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={handleNext} style={styles.footerBtnPink}>
-                            <ThemedText style={styles.footerBtnText}>
-                                {currentIndex === questions.length - 1 ? 'Done' : 'Next'}
-                            </ThemedText>
-                        </TouchableOpacity>
-                    </View>
-                </View>
+          {/* Card */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <ThemedText style={styles.circle}>3</ThemedText>
+              <View>
+                <ThemedText style={styles.cardTitle}>{category.title}</ThemedText>
+                <ThemedText style={styles.cardSubtitle}>This part is split into 9 sections, you can skip unrelated parts</ThemedText>
+              </View>
             </View>
-        </Modal>
-    );
+
+            <View style={{ backgroundColor: "#fff", padding: 10, borderRadius: 10, zIndex: 1, marginTop: -25, elevation: 1 }}>
+              <ThemedText>{currentQuestion.label}</ThemedText>
+              {currentQuestion.type === 'textarea' ? (
+                <View style={{ backgroundColor: "#F5EAEE", borderRadius: 10, marginTop: 10, padding: 12 }}>
+                  <TextInput
+                    multiline
+                    placeholder="Specify your details"
+                    style={styles.textInput}
+                    value={answers[currentQuestion.stateKey] || ''}
+                    onChangeText={handleChange}
+                  />
+                </View>
+              ) : (
+                currentQuestion.options.map((option, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={[
+                      styles.option,
+                      answers[currentQuestion.stateKey] === option && styles.optionSelected
+                    ]}
+                    onPress={() => handleOptionPress(option)}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.optionText,
+                        answers[currentQuestion.stateKey] === option && styles.optionTextSelected
+                      ]}
+                    >
+                      {option}
+                    </ThemedText>
+                  </TouchableOpacity>
+                ))
+              )}
+            </View>
+          </View>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <TouchableOpacity onPress={handlePrevious} style={styles.footerBtnGray}>
+              <ThemedText style={styles.footerBtnText}>Previous</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleNext} style={styles.footerBtnPink}>
+              <ThemedText style={styles.footerBtnText}>
+                {currentIndex === questions.length - 1 ? 'Done' : 'Next'}
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 };
 
 export default CategoryThreeModal;
