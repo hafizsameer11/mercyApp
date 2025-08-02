@@ -17,7 +17,7 @@ import { StatusBar } from 'expo-status-bar';
 
 // Images
 import logo from '../../assets/logo.png';
-import icon from '../../assets/icon.png';
+import icon from '../../assets/Img.png';
 import google from '../../assets/google.png';
 import facebook from '../../assets/facebook.png';
 import { useNavigation } from '@react-navigation/native';

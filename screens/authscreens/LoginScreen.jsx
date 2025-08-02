@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import logo from '../../assets/logo.png';
 import { KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
-import icon from '../../assets/icon.png';
+import icon from '../../assets/Img.png';
 import google from '../../assets/google.png';
 import facebook from '../../assets/facebook.png';
 import { SafeAreaView } from 'react-native-safe-area-context';
