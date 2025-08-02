@@ -20,24 +20,41 @@ const CategoryTwoModal = ({ visible, onClose, onNext, onPrevious, chat_id, user_
   const questions = category.questions;
   const currentQuestion = questions[currentIndex];
   const progress = ((currentIndex + 1) / questions.length) * 100;
+const [isSubmitting, setIsSubmitting] = useState(false);
 
-      console.log("chat_id", chat_id, "user_id", user_id,"in cateogy model two")
+  console.log("chat_id", chat_id, "user_id", user_id, "in cateogy model two")
 
   const handleSelect = (key, value) => {
     setAnswers((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleNext = async () => {
-    if (currentIndex < questions.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    } else {
-      const result = await submitAnswers(chat_id, user_id, answers);
-      if (result.status === 'success') {
-        onNext(); // Proceed to CategoryThreeModal
-        onSaved(answers);
-      }
+const handleNext = async () => {
+  if (isSubmitting) return; // prevent double-taps
+
+  setIsSubmitting(true);
+  try {
+    const result = await submitAnswers(chat_id, user_id, answers);
+    console.log('Submission result:', result);
+    if (result.status === 'success') {
+      onNext();
+      onSaved(answers);
+    }
+  } catch (error) {
+    console.error('Submission failed:', error);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
+
+  const handleSubmit = async () => {
+    const result = await submitAnswers(chat_id, user_id, answers);
+    if (result.status === 'success') {
+      onNext(); // or close modal
+      onSaved(answers);
     }
   };
+
 
   const handlePrevious = () => {
     if (currentIndex > 0) {
@@ -56,9 +73,10 @@ const CategoryTwoModal = ({ visible, onClose, onNext, onPrevious, chat_id, user_
           {/* Header */}
           <View style={styles.header}>
             <ThemedText style={styles.title}>Questions</ThemedText>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={handleSubmit}>
               <ThemedText style={styles.submitBtn}>Submit</ThemedText>
             </TouchableOpacity>
+
             <TouchableOpacity style={{ backgroundColor: "#fff", borderRadius: 20, padding: 4 }} onPress={onClose}>
               <Ionicons name="close" size={24} color="#000" />
             </TouchableOpacity>
@@ -80,32 +98,42 @@ const CategoryTwoModal = ({ visible, onClose, onNext, onPrevious, chat_id, user_
             </View>
 
             <View style={{ backgroundColor: "#fff", padding: 10, borderRadius: 10, zIndex: 1, marginTop: -25, elevation: 1 }}>
-              {/* Toggle */}
-              {currentQuestion.type === 'toggle' && (
-                <TouchableOpacity
-                  style={[styles.option, selected && styles.optionSelected]}
-                  onPress={() => handleSelect(currentQuestion.stateKey, !selected)}
-                >
-                  <ThemedText style={[styles.optionText, selected && styles.optionTextSelected]}>
-                    {currentQuestion.label}
-                  </ThemedText>
-                </TouchableOpacity>
-              )}
+              {questions.map((question, index) => {
+                const selected = answers[question.stateKey];
+                return (
+                  <View key={index} style={{ marginBottom: 15 }}>
+                    {question.type === 'toggle' && (
+                      <TouchableOpacity
+                        style={[styles.option, selected && styles.optionSelected]}
+                        onPress={() => handleSelect(question.stateKey, !selected)}
+                      >
+                        <ThemedText style={[styles.optionText, selected && styles.optionTextSelected]}>
+                          {question.label}
+                        </ThemedText>
+                      </TouchableOpacity>
+                    )}
 
-              {/* Radio Group */}
-              {currentQuestion.type === 'radioGroup' &&
-                currentQuestion.options.map((option, idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    style={[styles.option, selected === option && styles.optionSelected]}
-                    onPress={() => handleSelect(currentQuestion.stateKey, option)}
-                  >
-                    <ThemedText style={[styles.optionText, selected === option && styles.optionTextSelected]}>
-                      {option}
-                    </ThemedText>
-                  </TouchableOpacity>
-                ))}
+                    {question.type === 'radioGroup' && (
+                      <>
+                        <ThemedText style={styles.groupLabel}>{question.label}</ThemedText>
+                        {question.options.map((option, idx) => (
+                          <TouchableOpacity
+                            key={idx}
+                            style={[styles.option, selected === option && styles.optionSelected]}
+                            onPress={() => handleSelect(question.stateKey, option)}
+                          >
+                            <ThemedText style={[styles.optionText, selected === option && styles.optionTextSelected]}>
+                              {option}
+                            </ThemedText>
+                          </TouchableOpacity>
+                        ))}
+                      </>
+                    )}
+                  </View>
+                );
+              })}
             </View>
+
           </View>
 
           {/* Footer */}
@@ -113,11 +141,16 @@ const CategoryTwoModal = ({ visible, onClose, onNext, onPrevious, chat_id, user_
             <TouchableOpacity onPress={handlePrevious} style={styles.footerBtnGray}>
               <ThemedText style={styles.footerBtnText}>Previous</ThemedText>
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleNext} style={styles.footerBtnPink}>
-              <ThemedText style={styles.footerBtnText}>
-                {currentIndex === questions.length - 1 ? 'Done' : 'Next'}
-              </ThemedText>
-            </TouchableOpacity>
+            <TouchableOpacity
+  onPress={handleNext}
+  style={[styles.footerBtnPink, isSubmitting && { opacity: 0.5 }]}
+  disabled={isSubmitting}
+>
+  <ThemedText style={styles.footerBtnText}>
+    {isSubmitting ? 'Submitting...' : 'Next'}
+  </ThemedText>
+</TouchableOpacity>
+
           </View>
         </View>
       </View>
@@ -133,7 +166,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    height: '85%',
+    height: '95%',
     backgroundColor: '#F5F5F7',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
@@ -207,7 +240,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   option: {
-    backgroundColor:"#F5EAEE",
+    backgroundColor: "#F5EAEE",
     borderRadius: 10,
     padding: 12,
     marginTop: 10,
@@ -239,14 +272,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 60,
     backgroundColor: '#ddd',
     borderRadius: 30,
-    
+
   },
   footerBtnPink: {
     paddingVertical: 14,
     paddingHorizontal: 70,
     backgroundColor: '#992c55',
     borderRadius: 30,
-    
+
   },
   footerBtnText: {
     color: '#fff',
