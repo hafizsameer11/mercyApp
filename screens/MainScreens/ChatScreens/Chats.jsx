@@ -31,6 +31,7 @@ import {
     Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import CategoryOneModal from '../../../components/CategoryOneModal';
 import CategoryTwoModal from '../../../components/CategoryTwoModal';
@@ -43,6 +44,7 @@ const ChatScreen = () => {
 
     const [isMessagesLoading, setIsMessagesLoading] = useState(true);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+    
 
     const [previewImages, setPreviewImages] = useState([]);
     const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
@@ -87,6 +89,9 @@ const ChatScreen = () => {
 
     const { chat_id } = useRoute().params;
     // console.log("chat id",chat_id)
+    const [messageActionModalVisible, setMessageActionModalVisible] = useState(false);
+    const [selectedMessage, setSelectedMessage] = useState(null);
+
     const [forwardedMessage, setForwardedMessage] = useState(null);
 
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -356,7 +361,7 @@ const ChatScreen = () => {
     };
 
     useEffect(() => {
-          fetchMessages();
+        fetchMessages();
 
         const getUserDetail = async () => {
             const userData = await AsyncStorage.getItem("user");
@@ -834,7 +839,7 @@ const ChatScreen = () => {
                         paddingVertical: 8,
                         borderRadius: 20,
                         borderWidth: isJoin ? 1 : 0,
-                        borderColor: isJoin ? '#992C55' : 'transparent',
+                        borderColor: isJoin ? '#992C55' : '#992C55',
                     }}>
                         <Text style={{
                             color: isJoin ? '#992C55' : '#992C55',
@@ -934,8 +939,8 @@ const ChatScreen = () => {
         return (
             <TouchableOpacity
                 onLongPress={() => {
-                    setForwardedMessage(item);
-                    navigation.navigate('ForwardChat', { forwardMessage: item });
+                    setSelectedMessage(item);
+                    setMessageActionModalVisible(true);
                 }}
             >
 
@@ -963,7 +968,7 @@ const ChatScreen = () => {
 
             if (response.data.status === 'success') {
                 alert(`✅ Order marked as ${statusValue}`);
-                fetchMessages(); // optional: to refresh chat state
+                fetchMessages();
             } else {
                 alert('❌ Failed to update status');
             }
@@ -1497,7 +1502,51 @@ const ChatScreen = () => {
                                 </TouchableOpacity>
                             </View>
                         </KeyboardAvoidingView>
+
                     </Modal>
+
+                    <Modal
+                        visible={messageActionModalVisible}
+                        animationType="slide"
+                        transparent
+                        onRequestClose={() => setMessageActionModalVisible(false)}
+                    >
+                        <TouchableOpacity
+                            style={styles.modalOverlay}
+                            activeOpacity={1}
+                            onPress={() => setMessageActionModalVisible(false)}
+                        >
+                            <View style={styles.messageActionModal}>
+                                <TouchableOpacity
+                                    onPress={async () => {
+                                        if (selectedMessage?.text || selectedMessage?.type === 'text') {
+                                            await Clipboard.setStringAsync(selectedMessage.text);
+                                            alert('Copied to clipboard');
+                                        } else {
+                                            alert('Nothing to copy');
+                                        }
+                                        setMessageActionModalVisible(false);
+                                    }}
+                                    style={styles.modalItemRow}
+                                >
+                                    <Ionicons name="copy-outline" size={20} color="#000" style={styles.modalIcon} />
+                                    <Text style={styles.modalItemText}>Copy</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        setMessageActionModalVisible(false);
+                                        navigation.navigate('ForwardChat', { forwardMessage: selectedMessage });
+                                    }}
+                                    style={styles.modalItemRow}
+                                >
+                                    <Ionicons name="arrow-redo-outline" size={20} color="#000" style={styles.modalIcon} />
+                                    <Text style={styles.modalItemText}>Forward</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </TouchableOpacity>
+                    </Modal>
+
                     {/* image selector modal */}
                     <Modal visible={attachmentModal} transparent animationType="slide">
                         <Pressable style={styles.fullscreenOverlay} onPress={() => setAttachmentModal(false)}>
@@ -1683,6 +1732,13 @@ const styles = StyleSheet.create({
 
     modalIcon: {
         width: 22,
+    },
+    messageActionModal: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+        paddingHorizontal: 20,
+        paddingVertical: 30,
     },
 
     modalItemText: {
