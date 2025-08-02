@@ -42,6 +42,7 @@ import { ScrollView } from 'react-native-web';
 const ChatScreen = () => {
 
     const [isMessagesLoading, setIsMessagesLoading] = useState(true);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
     const [previewImages, setPreviewImages] = useState([]);
     const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
@@ -300,7 +301,7 @@ const ChatScreen = () => {
             alert("❌ Failed to send questionnaire.");
         }
     };
-    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+
 
     const fetchMessages = async () => {
         try {
@@ -354,6 +355,38 @@ const ChatScreen = () => {
         }
     };
 
+    useEffect(() => {
+          fetchMessages();
+
+        const getUserDetail = async () => {
+            const userData = await AsyncStorage.getItem("user");
+            if (userData) {
+                const parsed = JSON.parse(userData);
+                setUser(parsed);
+                setUserRole(parsed.role);
+            }
+        };
+
+        getUserDetail();
+
+        if (!hasLoadedOnce) {
+            const joinMsg = {
+                id: `agent-join-${Date.now()}`,
+                type: 'system',
+                text: `Agent ${agent?.name} has joined the chat`,
+                time: new Date().toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true,
+                }),
+            };
+
+            setMessages((prev) => [joinMsg, ...prev]);
+        }
+
+        intervalRef.current = setInterval(fetchMessages, 1000);
+        return () => clearInterval(intervalRef.current);
+    }, []);
 
     useEffect(() => {
         fetchMessages(); // initial fetch
@@ -789,6 +822,32 @@ const ChatScreen = () => {
                 </TouchableOpacity>
             );
         }
+
+        if (item.type === 'system') {
+            const isJoin = item.subtype === 'agent-join';
+
+            return (
+                <View style={{ alignItems: 'center', marginVertical: 6 }}>
+                    <View style={{
+                        backgroundColor: isJoin ? '#F1E6EB' : '#F1E6EB',
+                        paddingHorizontal: 16,
+                        paddingVertical: 8,
+                        borderRadius: 20,
+                        borderWidth: isJoin ? 1 : 0,
+                        borderColor: isJoin ? '#992C55' : 'transparent',
+                    }}>
+                        <Text style={{
+                            color: isJoin ? '#992C55' : '#992C55',
+                            fontSize: 12,
+                            fontWeight: '600',
+                        }}>
+                            {item.text}
+                        </Text>
+                    </View>
+                </View>
+            );
+        }
+
         if (item.type === 'questionnaire') {
             return (
                 <TouchableOpacity

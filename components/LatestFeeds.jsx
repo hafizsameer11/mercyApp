@@ -16,7 +16,7 @@ const feeds = [
     // Add more feeds if needed
 ];
 
-const LatestFeeds = (style) => {
+const LatestFeeds = ({ feeds, style }) => {
     const [likedFeeds, setLikedFeeds] = useState({}); // Track liked state
 
     const toggleLike = (id) => {
@@ -47,17 +47,19 @@ const LatestFeeds = (style) => {
             {/* Feed List */}
             <FlatList
                 data={feeds}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item) => item.id.toString()}
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 10 }}
                 renderItem={({ item }) => (
                     <View style={styles.card}>
-                        <Image source={item.image} style={styles.feedImage} resizeMode="cover" />
+                        <Image
+                            source={{ uri: item.featured_image }} // ← dynamic image
+                            style={styles.feedImage}
+                            resizeMode="cover"
+                        />
 
-                        {/* Title + Like */}
                         <View style={styles.footerRow}>
-                            <ThemedText style={styles.feedTitle}>{item.title}</ThemedText>
+                            <ThemedText style={styles.feedTitle}>{item.caption}</ThemedText>
 
                             <TouchableOpacity
                                 style={styles.likeBtn}
@@ -69,9 +71,11 @@ const LatestFeeds = (style) => {
                                     color="#992C55"
                                 />
                             </TouchableOpacity>
-
                         </View>
-                        <ThemedText style={styles.likes}>{item.likes} likes</ThemedText>
+
+                        <ThemedText style={styles.likes}>
+                            {item.likes_count + (likedFeeds[item.id] ? 1 : 0)} likes
+                        </ThemedText>
                     </View>
                 )}
             />
@@ -104,7 +108,7 @@ const styles = StyleSheet.create({
         color: '#a30059',
         fontWeight: '400',
         marginRight: 10,
-        fontSize:14,
+        fontSize: 14,
 
     },
     subText: {
@@ -119,7 +123,7 @@ const styles = StyleSheet.create({
         // padding: 12,
         borderRadius: 12,
         // marginRight: -16,
-        marginLeft: 7,
+        marginLeft: 10,
         marginTop: 10,
         width: cardWidth,
         shadowColor: '#000',

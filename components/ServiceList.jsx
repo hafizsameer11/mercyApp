@@ -1,6 +1,6 @@
 
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ThemedText from './ThemedText';
 import {
     View,
@@ -28,6 +28,8 @@ const { height } = Dimensions.get('window');
 
 const ServiceCategoryList = () => {
     const navigation = useNavigation();
+    
+
     const [selectedService, setSelectedService] = useState(null);
     const [modalVisible, setModalVisible] = useState(false);
     const slideAnim = useState(new Animated.Value(height))[0];
@@ -128,6 +130,9 @@ const ServiceCategoryList = () => {
             description: ['Eye color enhancement', 'Brightening whites'],
         },
     ];
+    
+
+
 
     const openModal = (service) => {
         setSelectedService(service);
@@ -140,6 +145,7 @@ const ServiceCategoryList = () => {
         }).start();
     };
 
+    
     const closeModal = () => {
         Animated.timing(slideAnim, {
             toValue: height,
@@ -178,10 +184,11 @@ const ServiceCategoryList = () => {
 
                     ))}
                 </View>
-                <View style={{ flex: '1', flexDirection: 'row', gap: 20, marginTop: 10 }}>
-                    <ThemedText style={{ fontSize: 10, }}>Photo Editing</ThemedText>
-                    <ThemedText style={{ fontSize: 10, }}>Photo Manipulation</ThemedText>
-                    <ThemedText style={{ fontSize: 10, marginLeft: -10, }}>Body Retouching</ThemedText>
+                <View style={{ flex: '1', flexDirection: 'row', gap: 45, marginTop: 10 }}>
+                    <ThemedText style={{ fontSize: 10, marginLeft:10
+                     }}> Editing</ThemedText>
+                    <ThemedText style={{ fontSize: 10, }}> Manipulation</ThemedText>
+                    <ThemedText style={{ fontSize: 10, marginLeft: -10, }}> Retouching</ThemedText>
                     <ThemedText style={{ fontSize: 10, marginLeft: 10 }}>Others</ThemedText>
                 </View>
             </View>

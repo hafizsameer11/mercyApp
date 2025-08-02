@@ -26,6 +26,8 @@ const { height } = Dimensions.get('window');
 
 const categories = ['All', 'Photo Editing', 'Photo Manipulation', 'Photo Retouching', 'Others'];
 const ChatScreen = () => {
+  const [serviceModalVisible, setServiceModalVisible] = useState(false);
+
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedLabel, setSelectedLabel] = useState('All');
   const [showLabelOptions, setShowLabelOptions] = useState(false);
@@ -216,31 +218,73 @@ const ChatScreen = () => {
     setTimeout(() => openLabelView(labelName), 300);
   };
   const filteredChats = useMemo(() => {
-  let filtered = [...chats];
+    let filtered = [...chats];
 
-  if (selectedCategory !== 'All') {
-    filtered = filtered.filter(chat =>
-      chat.agentDetails?.category === selectedCategory || chat.category === selectedCategory
-    );
-  }
+    if (selectedCategory !== 'All') {
+      filtered = filtered.filter(chat =>
+        chat.agentDetails?.category === selectedCategory || chat.category === selectedCategory
+      );
+    }
 
-  if (selectedStatus !== 'All') {
-    filtered = filtered.filter(chat => chat.status === selectedStatus);
-  }
+    if (selectedStatus !== 'All') {
+      filtered = filtered.filter(chat => chat.status === selectedStatus);
+    }
 
-  if (selectedLabel !== 'All') {
-    filtered = filtered.filter(chat => chat.label?.label === selectedLabel);
-  }
+    if (selectedLabel !== 'All') {
+      filtered = filtered.filter(chat => chat.label?.label === selectedLabel);
+    }
 
-  filtered.sort((a, b) => {
-    const dateA = new Date(a.time);
-    const dateB = new Date(b.time);
-    return dateSort === 'Newest First' ? dateB - dateA : dateA - dateB;
-  });
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.time);
+      const dateB = new Date(b.time);
+      return dateSort === 'Newest First' ? dateB - dateA : dateA - dateB;
+    });
 
-  return filtered;
-}, [chats, selectedCategory, selectedStatus, selectedLabel, dateSort]);
+    return filtered;
+  }, [chats, selectedCategory, selectedStatus, selectedLabel, dateSort]);
 
+  const assignAgentAndNavigate = async (serviceName, navigation, closeModal) => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        alert('You must be logged in.');
+        return;
+      }
+
+      const response = await axios.post(
+        API.ASSIGN_AGENT,
+        { service_type: serviceName },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const { chat_id, agent } = response.data.data;
+
+      if (agent) {
+        closeModal();
+        navigation.navigate('Chat', {
+          service: serviceName,
+          userRole: 'agent',
+          user: 'LoggedInUser',
+          agent: {
+            name: agent.name,
+            image: { uri: agent.image_url },
+          },
+          chat_id: chat_id,
+        });
+      } else {
+        alert('No agent assigned.');
+      }
+    } catch (error) {
+      console.error('Error assigning agent:', error?.response?.data || error.message);
+      alert('Failed to assign agent.');
+    }
+  };
 
 
   return (
@@ -249,7 +293,7 @@ const ChatScreen = () => {
         <View style={styles.headerRow}>
           <ThemedText fontFamily='monaque' weight='bold' style={styles.headerTitle}>Chat</ThemedText>
           <TouchableOpacity>
-            <Ionicons name="ellipsis-vertical" size={22} color="#fff" />
+            {/* <Ionicons name="ellipsis-vertical" size={22} color="#fff" /> */}
           </TouchableOpacity>
         </View>
 
@@ -483,12 +527,78 @@ const ChatScreen = () => {
           </Animated.View>
         </View>
       </Modal>
-      {userRole != 'user' && <TouchableOpacity
+
+      {/* user new chat modal
+       */}
+      <Modal
+        visible={serviceModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setServiceModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <ThemedText style={styles.modalTitle}>Choose a service</ThemedText>
+              <TouchableOpacity style={{ backgroundColor:"#fff", borderRadius:20, padding:4, elevation:1 }} onPress={() => setServiceModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.serviceGrid}>
+              {[
+                {
+                  label: 'Photo Editing',
+                  color: '#E6273C',
+                  icon: require('../../../assets/PenNib.png'),
+                },
+                {
+                  label: 'Photo Manipulation',
+                  color: '#7B2CBF',
+                  icon: require('../../../assets/Vector (6).png'),
+                },
+                {
+                  label: 'Body Retouching',
+                  color: '#D63384',
+                  icon: require('../../../assets/DropHalf.png'),
+                },
+                {
+                  label: 'Others',
+                  color: '#F59F00',
+                  icon: require('../../../assets/Eyedropper.png'),
+                },
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.label}
+                  style={styles.serviceBox}
+                  onPress={() => {
+                    assignAgentAndNavigate(item.label, navigation, () => setServiceModalVisible(false));
+                  }}
+                >
+                  <View style={[styles.iconCircle, { backgroundColor: item.color }]}>
+                    <Image source={item.icon} style={styles.iconImage} />
+                  </View>
+                  <ThemedText style={styles.serviceText}>{item.label}</ThemedText>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+
+      <TouchableOpacity
         style={styles.fabButton}
-        onPress={() => navigation.navigate('NewChat')}
+        onPress={() => {
+          if (userRole === 'user') {
+            setServiceModalVisible(true); // 👈 show modal for users
+          } else {
+            navigation.navigate('NewChat'); // 👈 navigate for agents/admins
+          }
+        }}
       >
         <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>}
+      </TouchableOpacity>
 
     </View>
   );
@@ -585,6 +695,74 @@ const styles = StyleSheet.create({
     // marginBottom: 6,
 
   },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: '#F5F5F7',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  serviceGrid: {
+    marginLeft:5,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap:12,
+    columnGap:12
+
+
+  },
+  serviceBox: {
+
+    width: 175,
+    aspectRatio: 1,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    height:190,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  iconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  iconImage: {
+    width: 26,
+    height: 26,
+    resizeMode: 'contain',
+  },
+  serviceText: {
+    fontSize: 13,
+    marginTop:10,
+    fontWeight: '500',
+    color: '#000',
+  },
+
+
 
 });
 
