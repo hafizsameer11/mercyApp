@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
@@ -20,45 +20,95 @@ const VoiceRecorderModal = ({ visible, onCancel, onSend, audioUri }) => {
     };
   }, [sound]);
 
-  const loadAndPlay = async () => {
-    try {
-      if (sound) {
-        await sound.unloadAsync(); // 🔥 prevent double loading
-        setSound(null);
-      }
+  // const loadAndPlay = async () => {
+  //   try {
+  //     if (sound) {
+  //       await sound.unloadAsync(); // 🔥 prevent double loading
+  //       setSound(null);
+  //     }
 
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: audioUri },
-        {},
-        (status) => {
-          if (status.isLoaded) {
-            setPositionMillis(status.positionMillis);
-            setDurationMillis(status.durationMillis);
-            if (status.didJustFinish) {
-              setPlaying(false);
-              setPositionMillis(0);
-            }
-          }
-        }
-      );
+  //     const { sound: newSound } = await Audio.Sound.createAsync(
+  //       { uri: audioUri },
+  //       {},
+  //       (status) => {
+  //         if (status.isLoaded) {
+  //           setPositionMillis(status.positionMillis);
+  //           setDurationMillis(status.durationMillis);
+  //           if (status.didJustFinish) {
+  //             setPlaying(false);
+  //             setPositionMillis(0);
+  //           }
+  //         }
+  //       }
+  //     );
 
-      setSound(newSound);
-      await newSound.playAsync();
-      setPlaying(true);
-    } catch (error) {
-      console.error("Error playing audio:", error);
-    }
-  };
+  //     setSound(newSound);
+  //     await newSound.playAsync();
+  //     setPlaying(true);
+  //   } catch (error) {
+  //     console.error("Error playing audio:", error);
+  //   }
+  // };
 
-  const stopPlayback = async () => {
+  const intervalRef = useRef(null); // Declare outside function, in component body
+
+const loadAndPlay = async () => {
+  try {
     if (sound) {
-      await sound.stopAsync();
       await sound.unloadAsync();
       setSound(null);
-      setPlaying(false);
-      setPositionMillis(0);
+      clearInterval(intervalRef.current); // Clear any previous interval
     }
-  };
+
+    const { sound: newSound } = await Audio.Sound.createAsync(
+      { uri: audioUri },
+      {},
+      (status) => {
+        if (status.isLoaded) {
+          setDurationMillis(status.durationMillis);
+          if (status.didJustFinish) {
+            setPlaying(false);
+            setPositionMillis(0);
+            clearInterval(intervalRef.current);
+          }
+        }
+      }
+    );
+
+    setSound(newSound);
+    await newSound.playAsync();
+    setPlaying(true);
+
+    // Start polling for positionMillis updates every 200ms
+    intervalRef.current = setInterval(async () => {
+      const status = await newSound.getStatusAsync();
+      if (status.isLoaded && status.isPlaying) {
+        setPositionMillis(status.positionMillis);
+      }
+    }, 200);
+  } catch (error) {
+    console.error('Error playing audio:', error);
+  }
+};
+  // const stopPlayback = async () => {
+  //   if (sound) {
+  //     await sound.stopAsync();
+  //     await sound.unloadAsync();
+  //     setSound(null);
+  //     setPlaying(false);
+  //     setPositionMillis(0);
+  //   }
+  // };
+const stopPlayback = async () => {
+  if (sound) {
+    await sound.stopAsync();
+    await sound.unloadAsync();
+    clearInterval(intervalRef.current); // ❗important
+    setSound(null);
+    setPlaying(false);
+    setPositionMillis(0);
+  }
+};
 
   const formatMillis = (ms) => {
     const total = Math.floor(ms / 1000);
@@ -76,6 +126,9 @@ const VoiceRecorderModal = ({ visible, onCancel, onSend, audioUri }) => {
     await stopPlayback();
     onSend(audioUri);
   };
+  const totalBars = 40;
+const highlightCount = Math.floor((positionMillis / durationMillis) * totalBars);
+
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -84,7 +137,7 @@ const VoiceRecorderModal = ({ visible, onCancel, onSend, audioUri }) => {
           {formatMillis(positionMillis)} / {formatMillis(durationMillis)}
         </ThemedText>
 
-        {audioUri ? <WaveformPreview uri={audioUri} /> : <Text>No preview</Text>}
+{audioUri ? <WaveformPreview uri={audioUri} highlightCount={highlightCount} /> : <Text>No preview</Text>}
 
         <View style={styles.controls}>
           <TouchableOpacity onPress={handleCancel}>

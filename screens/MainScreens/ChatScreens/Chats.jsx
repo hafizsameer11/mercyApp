@@ -617,9 +617,6 @@ const ChatScreen = () => {
             setIsAudioPlaying(false);
         }
     };
-
-
-
     const [progressMap, setProgressMap] = useState({});
     const [progressData, setProgressData] = useState({ progress: 0, completed_sections: 0 });
     useEffect(() => {

@@ -1,20 +1,35 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View } from 'react-native';
-import Svg, { Polyline } from 'react-native-svg';
 
-const WaveformPreview = ({ uri }) => {
-  const data = [10, 30, 15, 40, 25, 10, 35, 15]; // Replace with real waveform data if needed
+const WaveformPreview = ({ uri, highlightCount = 0 }) => {
+  const waveformData = useMemo(() => {
+    return Array.from({ length: 40 }, () =>
+      Math.floor(Math.random() * 35 + 10)
+    );
+  }, []); // only once on mount
 
   return (
-    <View style={{ height: 50, width: '100%' }}>
-      <Svg height="50" width="100%">
-        <Polyline
-          points={data.map((d, i) => `${i * 20},${50 - d}`).join(' ')}
-          fill="none"
-          stroke="#992C55"
-          strokeWidth="2"
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: 60,
+        marginVertical: 10,
+      }}
+    >
+      {waveformData.map((height, index) => (
+        <View
+          key={index}
+          style={{
+            width: 3,
+            height,
+            marginHorizontal: 1,
+            borderRadius: 2,
+            backgroundColor: index <= highlightCount ? '#992C55' : '#ddd',
+          }}
         />
-      </Svg>
+      ))}
     </View>
   );
 };
