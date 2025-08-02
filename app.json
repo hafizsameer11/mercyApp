@@ -4,14 +4,11 @@
     "slug": "mercynative",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "permissions": [
-      "AUDIO_RECORDING"
-    ],
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -19,11 +16,17 @@
       "supportsTablet": true
     },
     "android": {
+      "googleServicesFile": "./google-service.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "package": "com.hmstech11.mercynative"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -31,6 +34,11 @@
     "plugins": [
       "expo-audio",
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "306f27c1-39c3-4b9c-a996-4618b8e96cb6"
+      }
+    }
   }
 }

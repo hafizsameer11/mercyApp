@@ -1,19 +1,12 @@
-// import { NavigationContainer } from '@react-navigation/native';
-// import AuthNavigator from './navigation/AuthNavigator';
-
-// export default function App() {
-//   return (
-//     <NavigationContainer>
-//       <AuthNavigator />
-//     </NavigationContainer>
-//   );
-// }
-// App.js
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import AuthNavigator from './navigation/AuthNavigator';
 import { useFonts } from 'expo-font';
 import { View, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NotificationManager from './utils/NotificationManager';
+// import NotificationManager from './utils/NotificationManager';
+// import NotificationManager from './components/NotificationManager'; // Adjust path if needed
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -32,15 +25,32 @@ export default function App() {
     'Monaque-Italic': require('./assets/fonts/Monarque-Italic.ttf'),
     'Monaque-Light': require('./assets/fonts/Monarque-Light.ttf'),
     'Monaque-LightItalic': require('./assets/fonts/Monarque-LightItalic.ttf'),
-    // 'Monaque-Medium': require('./assets/fonts/Monarque-Medium.ttf'),
-    // 'Monaque-MediumItalic': require('./assets/fonts/Monarque-MediumItalic.ttf'),
     'Monaque-SemiBold': require('./assets/fonts/Monarque-SemiBold.ttf'),
     'Monaque-SemiBoldItalic': require('./assets/fonts/Monarque-SemiBoldItalic.ttf'),
     'Monaque-Thin': require('./assets/fonts/Monarque-Thin.ttf'),
     'Monaque-ThinItalic': require('./assets/fonts/Monarque-ThinItalic.ttf'),
   });
 
-  if (!fontsLoaded) {
+  const [token, setToken] = useState(null);
+  const [user, setUser] = useState(null);
+  const [isAppReady, setIsAppReady] = useState(false);
+
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const storedToken = await AsyncStorage.getItem('token');
+        const storedUser = await AsyncStorage.getItem('user');
+        if (storedToken) setToken(storedToken);
+        if (storedUser) setUser(JSON.parse(storedUser));
+      } catch (e) {
+        console.error('Failed to load token/user:', e);
+      }
+      setIsAppReady(true);
+    };
+    loadUserData();
+  }, []);
+
+  if (!fontsLoaded || !isAppReady) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#992C55" />
@@ -51,6 +61,7 @@ export default function App() {
   return (
     <NavigationContainer>
       <AuthNavigator />
+      {token && user && <NotificationManager token={token} user={user} />}
     </NavigationContainer>
   );
 }

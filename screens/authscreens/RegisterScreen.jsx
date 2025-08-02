@@ -9,6 +9,8 @@ import {
     ScrollView,
     StyleSheet,
     Image,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -73,7 +75,12 @@ const RegisterScreen = () => {
 
 
     return (
-        <SafeAreaView style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+
             <StatusBar style="dark" />
 
             <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -169,7 +176,10 @@ const RegisterScreen = () => {
                 </View>
 
             </ScrollView>
-        </SafeAreaView>
+        {/* </SafeAreaView> */}
+        </KeyboardAvoidingView>
+
+
     );
 };
 

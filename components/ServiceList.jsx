@@ -22,6 +22,7 @@ import axios from 'axios';
 import API from '../config/api.config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+const { width } = Dimensions.get('window');
 
 const { height } = Dimensions.get('window');
 
@@ -330,13 +331,12 @@ const ServiceCategoryList = () => {
 export default ServiceCategoryList;
 
 const styles = StyleSheet.create({
-    wrapper: {
-        // position: 'absolute',
-        zIndex: 0,
-        width: 370,
-        marginTop: -58,
-        marginLeft: 20
-    },
+ wrapper: {
+    zIndex: 0,
+    width: width - 40, // 20 margin on left + 20 on right
+    marginHorizontal: 20,
+    marginTop: -58,
+},
     modalBox: {
         backgroundColor: '#fff',
         borderRadius: 16,
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
     },
     titleBar: {
         position: 'absolute',
-        left: 14,
+        left: 1,
         borderColor: '#992C55',
         borderWidth: 1,
         top: 20,
@@ -407,8 +407,8 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         paddingHorizontal: 25,
-        paddingTop: 50,
-        paddingBottom: 20,
+        paddingTop: 20,
+        // paddingBottom: 20,
     },
     modalTitle: {
         fontSize: 15,
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
         flexShrink: 1,
     },
     proceedBtn: {
-        marginTop: 20,
+        // marginTop: 20,
         backgroundColor: '#992C55',
         paddingVertical: 12,
         paddingHorizontal: 10,

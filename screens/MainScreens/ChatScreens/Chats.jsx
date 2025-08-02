@@ -68,6 +68,10 @@ const ChatScreen = () => {
     const [viewNotesVisible, setViewNotesVisible] = useState(false);
     const [addNoteVisible, setAddNoteVisible] = useState(false);
     const [newNoteText, setNewNoteText] = useState('');
+    const [playingAudioId, setPlayingAudioId] = useState(null); // message ID
+    const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+    const [audioPlayer, setAudioPlayer] = useState(null); // store Audio.Sound instance
+
     const [notes, setNotes] = useState([
         {
             id: 1,
@@ -103,6 +107,7 @@ const ChatScreen = () => {
     const [inputMessage, setInputMessage] = useState('');
     const flatListRef = useRef();
     const [modalVisible, setModalVisible] = useState(false);
+    const [chatDetails, setChatDetails] = useState({});
     const [orderDetails, setOrderDetails] = useState({});
     // image selection logic
     const pickImage = async () => {
@@ -535,27 +540,51 @@ const ChatScreen = () => {
             alert('Failed to send voice message');
         }
     };
-    const playAudio = async (uri) => {
+    const playAudio = async (uri, id) => {
         try {
-            const playAudio = async (uri) => {
-                try {
-                    const { sound } = await Audio.Sound.createAsync(
-                        { uri: uri },
-                        { shouldPlay: true }
-                    );
-                    await sound.playAsync();
-                } catch (err) {
-                    console.error('Failed to play audio', err);
-                    alert('Could not play audio');
-                }
-            };
+            // Pause if clicking the same playing message
+            if (playingAudioId === id && isAudioPlaying && audioPlayer) {
+                await audioPlayer.pauseAsync();
+                setIsAudioPlaying(false);
+                return;
+            }
 
-            const { sound } = await Audio.Sound.createAsync({ uri });
-            await sound.playAsync();
+            // Resume if clicking the same message that is paused
+            if (playingAudioId === id && !isAudioPlaying && audioPlayer) {
+                await audioPlayer.playAsync();
+                setIsAudioPlaying(true);
+                return;
+            }
+
+            // Stop previous audio if any
+            if (audioPlayer) {
+                await audioPlayer.stopAsync();
+                await audioPlayer.unloadAsync();
+            }
+
+            const { sound } = await Audio.Sound.createAsync(
+                { uri },
+                { shouldPlay: true }
+            );
+
+            sound.setOnPlaybackStatusUpdate((status) => {
+                if (status.didJustFinish) {
+                    setPlayingAudioId(null);
+                    setIsAudioPlaying(false);
+                }
+            });
+
+            setAudioPlayer(sound);
+            setPlayingAudioId(id);
+            setIsAudioPlaying(true);
         } catch (err) {
             console.error('Failed to play audio', err);
+            alert('Could not play audio');
+            setPlayingAudioId(null);
+            setIsAudioPlaying(false);
         }
     };
+
 
 
     const [progressMap, setProgressMap] = useState({});
@@ -662,9 +691,14 @@ const ChatScreen = () => {
 
                     <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg]}>
                         <View style={isMyMessage ? styles.myBubble : styles.otherBubble}>
-                            <TouchableOpacity onPress={() => playAudio(item.audio)}>
-                                <Ionicons name="play" size={24} color="#fff" />
+                            <TouchableOpacity onPress={() => playAudio(item.audio, item.id)}>
+                                <Ionicons
+                                    name={playingAudioId === item.id && isAudioPlaying ? 'pause' : 'play'}
+                                    size={24}
+                                    color="#fff"
+                                />
                             </TouchableOpacity>
+
                             <ThemedText style={styles.time}>{item.time}</ThemedText>
                         </View>
                     </View>

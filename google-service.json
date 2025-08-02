@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1067808456776",
+    "project_id": "mercynative-769ea",
+    "storage_bucket": "mercynative-769ea.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1067808456776:android:7019b73d6e5a4638fa587d",
+        "android_client_info": {
+          "package_name": "com.hmstech11.mercynative"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-hSK0u09wRd7tY8HyqyV0H11slxfJ8pI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

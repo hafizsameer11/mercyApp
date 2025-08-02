@@ -21,6 +21,8 @@ const CategoryTwoModal = ({ visible, onClose, onNext, onPrevious, chat_id, user_
   const currentQuestion = questions[currentIndex];
   const progress = ((currentIndex + 1) / questions.length) * 100;
 
+      console.log("chat_id", chat_id, "user_id", user_id,"in cateogy model two")
+
   const handleSelect = (key, value) => {
     setAnswers((prev) => ({ ...prev, [key]: value }));
   };

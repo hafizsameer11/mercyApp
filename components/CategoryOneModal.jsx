@@ -18,6 +18,7 @@ const { width } = Dimensions.get('window');
 const CategoryOneModal = ({ visible, onClose, onNext, chat_id, user_id, onSaved }) => {
     const category = questionnaireData[0]; // First category: Face
     const [selectedOption, setSelectedOption] = useState(null);
+    console.log("chat_id", chat_id, "user_id", user_id,"in cateogy model one")
 
     return (
         <Modal visible={visible} animationType="slide" transparent>

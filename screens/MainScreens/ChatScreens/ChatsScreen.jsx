@@ -24,8 +24,7 @@ import API from '../../../config/api.config';
 
 const { height } = Dimensions.get('window');
 
-const categories = ['All', 'Editing', 'Manipulation', 'Retouching', 'Others'];
-
+const categories = ['All', 'Photo Editing', 'Photo Manipulation', 'Photo Retouching', 'Others'];
 const ChatScreen = () => {
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedLabel, setSelectedLabel] = useState('All');
@@ -69,15 +68,58 @@ const ChatScreen = () => {
         });
 
         if (response.data.status === 'success') {
+          // const chatData = response.data.data.map(chat => {
+          //   const otherUser = chat.participant_b;
+
+          //   return {
+          //     id: chat.id.toString(),
+          //     name: otherUser.name,
+          //     lastMessage: chat.messages?.slice(-1)[0]?.message || 'No messages yet',
+          //     time: chat.updated_at,
+          //     unreadCount: chat.unreadCount ?? 0,
+          //     category: chat.category || 'Others',
+
+          //     label: null,
+          //     type: chat?.type,
+          //     image: otherUser.profile_picture
+          //       ? { uri: otherUser.profile_picture }
+          //       : require('../../../assets/Ellipse 18.png'),
+          //     agentDetails: otherUser,
+          //   };
+          // });
           const chatData = response.data.data.map(chat => {
             const otherUser = chat.participant_b;
 
             return {
               id: chat.id.toString(),
               name: otherUser.name,
-              lastMessage: chat.messages?.slice(-1)[0]?.message || 'No messages yet',
+              lastMessage: (() => {
+                const lastMsg = chat.messages?.slice(-1)[0];
+                if (!lastMsg) return 'No messages yet';
+
+                if (lastMsg.message) return lastMsg.message;
+
+                switch (lastMsg.type) {
+                  case 'image':
+                    return 'Sent an image';
+                  case 'video':
+                    return 'Sent a video';
+                  case 'voice':
+                    return 'Sent a voice note';
+                  case 'file':
+                    return 'Sent a file';
+                  case 'payment':
+                    return 'Sent a payment';
+                  case 'questionnaire':
+                  case 'form':
+                    return 'Sent a form';
+                  default:
+                    return `Sent a ${lastMsg.type}`;
+                }
+              })(),
               time: chat.updated_at,
               unreadCount: chat.unreadCount ?? 0,
+              category: chat.category || 'Others',
               label: null,
               type: chat?.type,
               image: otherUser.profile_picture
@@ -86,6 +128,7 @@ const ChatScreen = () => {
               agentDetails: otherUser,
             };
           });
+
 
           setChats(chatData);
         }
@@ -173,27 +216,31 @@ const ChatScreen = () => {
     setTimeout(() => openLabelView(labelName), 300);
   };
   const filteredChats = useMemo(() => {
-    let filtered = [...chats];
+  let filtered = [...chats];
 
-    // Filter by status (if implemented per chat)
-    if (selectedStatus !== 'All') {
-      filtered = filtered.filter(chat => chat.status === selectedStatus);
-    }
+  if (selectedCategory !== 'All') {
+    filtered = filtered.filter(chat =>
+      chat.agentDetails?.category === selectedCategory || chat.category === selectedCategory
+    );
+  }
 
-    // Filter by label
-    if (selectedLabel !== 'All') {
-      filtered = filtered.filter(chat => chat.label?.label === selectedLabel);
-    }
+  if (selectedStatus !== 'All') {
+    filtered = filtered.filter(chat => chat.status === selectedStatus);
+  }
 
-    // Sort by date
-    filtered.sort((a, b) => {
-      const dateA = new Date(a.time);
-      const dateB = new Date(b.time);
-      return dateSort === 'Newest First' ? dateB - dateA : dateA - dateB;
-    });
+  if (selectedLabel !== 'All') {
+    filtered = filtered.filter(chat => chat.label?.label === selectedLabel);
+  }
 
-    return filtered;
-  }, [chats, selectedStatus, selectedLabel, dateSort]);
+  filtered.sort((a, b) => {
+    const dateA = new Date(a.time);
+    const dateB = new Date(b.time);
+    return dateSort === 'Newest First' ? dateB - dateA : dateA - dateB;
+  });
+
+  return filtered;
+}, [chats, selectedCategory, selectedStatus, selectedLabel, dateSort]);
+
 
 
   return (
