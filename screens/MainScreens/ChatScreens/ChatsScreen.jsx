@@ -297,7 +297,7 @@ const ChatScreen = () => {
         <View style={styles.searchBar}>
           <Ionicons name="search" size={18} color="#aaa" style={{ marginLeft: 10 }} />
           <TextInput
-            placeholder="Search Users"
+            placeholder="Search Chats"
             placeholderTextColor="#aaa"
             style={styles.searchInput}
             value={search}

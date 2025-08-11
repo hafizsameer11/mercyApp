@@ -69,7 +69,7 @@ const MainNavigator = () => {
                   justifyContent: 'center',
                   // Adjust positioning to look good with the new dynamic height
                   // transform: [{ translateY: -15 }],
-                  marginBottom:-10
+                  marginBottom:-25
                 }}
               >
                 <Ionicons name="chatbubble-outline" size={24} color="#fff" />

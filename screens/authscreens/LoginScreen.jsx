@@ -1,4 +1,4 @@
-import React, { useState,useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
     View,
@@ -71,22 +71,22 @@ const LoginScreen = () => {
 
     };
 
-useEffect(() => {
-    const checkAuth = async () => {
-        try {
-            const token = await AsyncStorage.getItem('token');
-            if (token) {
-                // Optionally validate token via API if needed
-                console.log('🔐 Token found, auto-logging in');
-                navigation.replace('Main');
+    useEffect(() => {
+        const checkAuth = async () => {
+            try {
+                const token = await AsyncStorage.getItem('token');
+                if (token) {
+                    // Optionally validate token via API if needed
+                    console.log('🔐 Token found, auto-logging in');
+                    navigation.replace('Main');
+                }
+            } catch (e) {
+                console.log('❌ Error checking token:', e.message);
             }
-        } catch (e) {
-            console.log('❌ Error checking token:', e.message);
-        }
-    };
+        };
 
-    checkAuth();
-}, []);
+        checkAuth();
+    }, []);
 
 
 
@@ -112,7 +112,7 @@ useEffect(() => {
                                 resizeMode="cover"
                             >
                             </ImageBackground>
-<View style={styles.overlay}>
+                            <View style={styles.overlay}>
 
                                 <Image style={styles.logo} source={logo} />
 
@@ -237,19 +237,19 @@ const styles = StyleSheet.create({
         height: 320,
         width: '100%',
     },
-  overlay: {
-    marginTop: -100, // adjust based on how much overlap you want
-    width: '90%',
-    backgroundColor: '#992C55',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
-    elevation: 10,
-    alignSelf: 'center',
-},
+    overlay: {
+        marginTop: -100, // adjust based on how much overlap you want
+        width: '90%',
+        backgroundColor: '#992C55',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        borderBottomLeftRadius: 26,
+        borderBottomRightRadius: 26,
+        elevation: 10,
+        alignSelf: 'center',
+    },
 
     titleText: {
         fontSize: 16,

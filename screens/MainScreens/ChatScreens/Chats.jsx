@@ -13,6 +13,8 @@ import ThemedText from '../../../components/ThemedText';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import API, { BASE_URL } from '../../../config/api.config';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 
 // import EmojiSelector from 'react-native-emoji-selector';
 
@@ -44,7 +46,7 @@ const ChatScreen = () => {
 
     const [isMessagesLoading, setIsMessagesLoading] = useState(true);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-    
+
 
     const [previewImages, setPreviewImages] = useState([]);
     const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
@@ -217,6 +219,57 @@ const ChatScreen = () => {
             }]);
         }
     };
+
+    // images download in gallery 
+    // Is this message the only image in its group?
+    const isSingleImageMessage = (msg) => {
+        if (!msg || msg.type !== 'image') return false;
+        if (!msg.groupId) return true; // no grouping info => treat as single
+        const count = messages.filter(m => m.type === 'image' && m.groupId === msg.groupId).length;
+        return count <= 1;
+    };
+
+    const getFilenameFromUri = (uri, fallback = 'image.jpg') => {
+        try {
+            const u = decodeURI(uri);
+            const name = u.split('?')[0].split('/').pop();
+            if (!name) return fallback;
+            // ensure extension
+            return /\.[a-z0-9]+$/i.test(name) ? name : `${name}.jpg`;
+        } catch {
+            return fallback;
+        }
+    };
+
+    // Download + save to Photos/Gallery
+    const downloadImageToGallery = async (uri) => {
+        try {
+            // Ask for media permissions
+            const { status } = await MediaLibrary.requestPermissionsAsync();
+            if (status !== 'granted') {
+                alert('Permission required to save images to your gallery.');
+                return;
+            }
+
+            let localUri = uri;
+
+            // If not local file, download first
+            if (!uri.startsWith('file://')) {
+                const filename = getFilenameFromUri(uri, `image_${Date.now()}.jpg`);
+                const target = FileSystem.documentDirectory + filename;
+                const res = await FileSystem.downloadAsync(uri, target);
+                localUri = res.uri;
+            }
+
+            // Save to gallery
+            await MediaLibrary.saveToLibraryAsync(localUri);
+            alert('Image saved to your gallery.');
+        } catch (e) {
+            console.log('Download error:', e);
+            alert('Failed to save image.');
+        }
+    };
+
     // Quick Replies Modal Handling
     const saveQuickReply = () => {
         if (!newReply.trim()) return;
@@ -652,46 +705,61 @@ const ChatScreen = () => {
             chat_id: chat_id,
         });
     };
+    const handleLongPress = (item) => {
+        setSelectedMessage(item);
+        setMessageActionModalVisible(true);
+    };
+
 
     const renderMessage = ({ item }) => {
 
         const isMyMessage = item.sender === user?.id;
         if (item.type === 'image') {
+            const isMyMessage = item.sender === user?.id;
+
             return (
-                <TouchableOpacity
-                    onLongPress={() => {
-                        setForwardedMessage(item);
-                        navigation.navigate('ForwardChat', { forwardMessage: item });
-                    }}
-                >
-                    <View style={[styles.msgRow, item.sender === user?.id ? styles.rightMsg : styles.leftMsg]}>
-                        <View style={{
+                <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg]}>
+                    <View
+                        style={{
                             paddingBottom: 20,
                             backgroundColor: isMyMessage ? '#992C55' : '#E7E7E7',
                             borderRadius: 10,
-                        }}>
-                            <TouchableOpacity onPress={() => {
+                        }}
+                    >
+                        <Pressable
+                            onPress={() => {
                                 setPreviewImages([item]);
                                 setImagePreviewVisible(true);
-                            }}>
-                                <Image
-                                    source={{ uri: item.image }}
-                                    style={{
-                                        width: 200,
-                                        height: 200,
-                                        borderRadius: 10,
-                                        borderWidth: 5,
-                                        borderColor: '#992c55',
-                                    }}
-                                    resizeMode="cover"
-                                />
-                            </TouchableOpacity>
-                        </View>
-                        <ThemedText style={[styles.time, { color: "#000", marginBottom: -15 }]}>{item.time}</ThemedText>
+                            }}
+                            onLongPress={() => {
+                                setSelectedMessage(item);                // important
+                                setMessageActionModalVisible(true);      // open the same modal
+                            }}
+                            delayLongPress={300}
+                            hitSlop={8}
+                            android_ripple={{ foreground: true }}
+                            style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
+                        >
+                            <Image
+                                source={{ uri: item.image }}
+                                style={{
+                                    width: 200,
+                                    height: 200,
+                                    borderRadius: 10,
+                                    borderWidth: 5,
+                                    borderColor: '#992c55',
+                                }}
+                                resizeMode="cover"
+                            />
+                        </Pressable>
                     </View>
-                </TouchableOpacity>
+                    <ThemedText style={[styles.time, isMyMessage ? styles.timeRight : styles.timeLeft]}>
+                        {item.time}
+                    </ThemedText>
+                </View>
             );
         }
+
 
 
 
@@ -710,7 +778,9 @@ const ChatScreen = () => {
                                 <ThemedText>{item.name}</ThemedText>
                             </View>
                         </TouchableOpacity>
-                        <ThemedText style={styles.time}>{item.time}</ThemedText>
+                        <ThemedText style={[styles.time, isMyMessage ? styles.timeRight : styles.timeLeft]}>
+                            {item.time}
+                        </ThemedText>
                     </View>
                 </TouchableOpacity>
             );
@@ -734,7 +804,9 @@ const ChatScreen = () => {
                                 />
                             </TouchableOpacity>
 
-                            <ThemedText style={styles.time}>{item.time}</ThemedText>
+                            <ThemedText style={[styles.time, isMyMessage ? styles.timeRight : styles.timeLeft]}>
+                                {item.time}
+                            </ThemedText>
                         </View>
                     </View>
                 </TouchableOpacity>
@@ -944,7 +1016,9 @@ const ChatScreen = () => {
                 <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg]}>
                     <View style={isMyMessage ? styles.myBubble : styles.otherBubble}>
                         <ThemedText style={[isMyMessage ? styles.msgText : styles.msgTextleft]}>{item.text}</ThemedText>
-                        <ThemedText style={styles.time}>{item.time}</ThemedText>
+                        <ThemedText style={[styles.time, isMyMessage ? styles.timeRight : styles.timeLeft]}>
+                            {item.time}
+                        </ThemedText>
                     </View>
                 </View>
             </TouchableOpacity>
@@ -1285,7 +1359,9 @@ const ChatScreen = () => {
                                             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
                                                 <Image source={item.user.avatar} style={{ width: 24, height: 24, borderRadius: 12, marginRight: 6 }} />
                                                 <ThemedText style={{ fontSize: 13, color: '#555' }}>{item.user.name}</ThemedText>
-                                                <ThemedText style={{ fontSize: 11, color: '#888', marginLeft: 'auto' }}>{item.timestamp}</ThemedText>
+                                                <ThemedText style={[styles.time, isMyMessage ? styles.timeRight : styles.timeLeft]}>
+                                                    {item.time}
+                                                </ThemedText>
                                             </View>
                                         </View>
                                     )}
@@ -1537,6 +1613,18 @@ const ChatScreen = () => {
                                     }}
                                     style={styles.modalItemRow}
                                 >
+                                    {selectedMessage?.type === 'image' && isSingleImageMessage(selectedMessage) && (
+                                        <TouchableOpacity
+                                            onPress={async () => {
+                                                await downloadImageToGallery(selectedMessage.image);
+                                                setMessageActionModalVisible(false);
+                                            }}
+                                            style={styles.modalItemRow}
+                                        >
+                                            <Ionicons name="download-outline" size={20} color="#000" style={styles.modalIcon} />
+                                            <Text style={styles.modalItemText}>Download</Text>
+                                        </TouchableOpacity>
+                                    )}
                                     <Ionicons name="arrow-redo-outline" size={20} color="#000" style={styles.modalIcon} />
                                     <Text style={styles.modalItemText}>Forward</Text>
                                 </TouchableOpacity>
@@ -1587,20 +1675,41 @@ const ChatScreen = () => {
                             <FlatList
                                 data={previewImages}
                                 keyExtractor={(img) => img.id}
-                                renderItem={({ item }) => (
-                                    <View style={{ marginBottom: 16 }}>
-                                        <Image source={{ uri: item.image }} style={{ width: '100%', height: 450 }} resizeMode="cover" />
-                                        <ThemedText style={{ textAlign: 'right', paddingHorizontal: 10 }}>{item.time}</ThemedText>
-                                    </View>
-                                )}
+                                renderItem={({ item }) => {
+                                    const mine = item?.sender === user?.id; // <-- compute here
+                                    return (
+                                        <View style={{ marginBottom: 16 }}>
+                                            <Image source={{ uri: item.image }} style={{ width: '100%', height: 450 }} resizeMode="cover" />
+                                            <ThemedText style={[styles.time, mine ? styles.timeRight : styles.timeLeft]}>
+                                                {item.time}
+                                            </ThemedText>
+
+                                            <TouchableOpacity
+                                                onPress={() => downloadImageToGallery(item.image)}
+                                                style={{
+                                                    position: 'absolute',
+                                                    right: 16,
+                                                    top: 16,
+                                                    backgroundColor: 'rgba(0,0,0,0.5)',
+                                                    padding: 10,
+                                                    borderRadius: 24,
+                                                }}
+                                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                            >
+                                                <Ionicons name="download-outline" size={22} color="#fff" />
+                                            </TouchableOpacity>
+                                        </View>
+                                    );
+                                }}
                             />
+
                         </View>
                     </Modal>
 
                 </View>
-            </TouchableWithoutFeedback>
+            </TouchableWithoutFeedback >
             {/* </ScrollView> */}
-        </KeyboardAvoidingView>
+        </KeyboardAvoidingView >
     );
 };
 const styles = StyleSheet.create({
@@ -1669,7 +1778,9 @@ const styles = StyleSheet.create({
     },
     msgText: { color: '#fff' },
     msgTextleft: { color: 'black' },
-    time: { fontSize: 8, color: '#eee', alignSelf: 'flex-end', marginRight: -30 },
+    time: { fontSize: 8, alignSelf: 'flex-end', marginRight: -30 },
+    timeLeft: { color: '#000' },
+    timeRight: { color: '#fff' },
 
     inputRow: {
         flexDirection: 'row',

@@ -1,4 +1,4 @@
- import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -17,6 +17,7 @@ import axios from 'axios';
 const categories = ['All', 'Editing', 'Manipulation', 'Retouching', 'Other', 'Testing'];
 
 const FeedPage = () => {
+
 
   const [feeds, setFeeds] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -55,9 +56,9 @@ const FeedPage = () => {
         });
 
         const { feeds, feedCategories } = response.data.data;
-        console.log("feeds",feeds)
+        console.log("feeds", feeds)
         setFeeds(feeds);
-        setCategories(['All', ...feedCategories.map(cat => cat.name)]); 
+        setCategories(['All', ...feedCategories.map(cat => cat.name)]);
       } catch (error) {
         console.log('❌ Error fetching feeds:', error?.response?.data || error.message);
       }

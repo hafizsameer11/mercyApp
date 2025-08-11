@@ -20,7 +20,7 @@ const CategoryTwoModal = ({ visible, onClose, onNext, onPrevious, chat_id, user_
   const questions = category.questions;
   const currentQuestion = questions[currentIndex];
   const progress = ((currentIndex + 1) / questions.length) * 100;
-const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   console.log("chat_id", chat_id, "user_id", user_id, "in cateogy model two")
 
@@ -28,23 +28,23 @@ const [isSubmitting, setIsSubmitting] = useState(false);
     setAnswers((prev) => ({ ...prev, [key]: value }));
   };
 
-const handleNext = async () => {
-  if (isSubmitting) return; // prevent double-taps
+  const handleNext = async () => {
+    if (isSubmitting) return; // prevent double-taps
 
-  setIsSubmitting(true);
-  try {
-    const result = await submitAnswers(chat_id, user_id, answers);
-    console.log('Submission result:', result);
-    if (result.status === 'success') {
-      onNext();
-      onSaved(answers);
+    setIsSubmitting(true);
+    try {
+      const result = await submitAnswers(chat_id, user_id, answers);
+      console.log('Submission result:', result);
+      if (result.status === 'success') {
+        onNext();
+        onSaved(answers);
+      }
+    } catch (error) {
+      console.error('Submission failed:', error);
+    } finally {
+      setIsSubmitting(false);
     }
-  } catch (error) {
-    console.error('Submission failed:', error);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
 
   const handleSubmit = async () => {
@@ -73,9 +73,9 @@ const handleNext = async () => {
           {/* Header */}
           <View style={styles.header}>
             <ThemedText style={styles.title}>Questions</ThemedText>
-            <TouchableOpacity onPress={handleSubmit}>
+            {/* <TouchableOpacity onPress={handleSubmit}>
               <ThemedText style={styles.submitBtn}>Submit</ThemedText>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
             <TouchableOpacity style={{ backgroundColor: "#fff", borderRadius: 20, padding: 4 }} onPress={onClose}>
               <Ionicons name="close" size={24} color="#000" />
@@ -142,14 +142,14 @@ const handleNext = async () => {
               <ThemedText style={styles.footerBtnText}>Previous</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
-  onPress={handleNext}
-  style={[styles.footerBtnPink, isSubmitting && { opacity: 0.5 }]}
-  disabled={isSubmitting}
->
-  <ThemedText style={styles.footerBtnText}>
-    {isSubmitting ? 'Submitting...' : 'Next'}
-  </ThemedText>
-</TouchableOpacity>
+              onPress={handleNext}
+              style={[styles.footerBtnPink, isSubmitting && { opacity: 0.5 }]}
+              disabled={isSubmitting}
+            >
+              <ThemedText style={styles.footerBtnText}>
+                {isSubmitting ? 'Submitting...' : 'Next'}
+              </ThemedText>
+            </TouchableOpacity>
 
           </View>
         </View>

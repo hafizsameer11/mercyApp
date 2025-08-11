@@ -27,9 +27,9 @@ const CategoryOneModal = ({ visible, onClose, onNext, chat_id, user_id, onSaved 
                     {/* Header */}
                     <View style={styles.header}>
                         <ThemedText style={styles.title}>Questions</ThemedText>
-                        <TouchableOpacity>
+                        {/* <TouchableOpacity>
                             <ThemedText style={styles.submitBtn}>Submit</ThemedText>
-                        </TouchableOpacity>
+                        </TouchableOpacity> */}
                         <TouchableOpacity style={{ backgroundColor: "#fff", borderRadius: 20, padding: 4 }} onPress={onClose}>
                             <Ionicons name="close" size={24} color="#000" />
                         </TouchableOpacity>
