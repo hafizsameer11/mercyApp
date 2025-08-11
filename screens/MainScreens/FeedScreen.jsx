@@ -55,6 +55,7 @@ const FeedPage = () => {
         });
 
         const { feeds, feedCategories } = response.data.data;
+        console.log("feeds",feeds)
         setFeeds(feeds);
         setCategories(['All', ...feedCategories.map(cat => cat.name)]); 
       } catch (error) {

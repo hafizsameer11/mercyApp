@@ -70,28 +70,10 @@ const ChatScreen = () => {
         });
 
         if (response.data.status === 'success') {
-          // const chatData = response.data.data.map(chat => {
-          //   const otherUser = chat.participant_b;
 
-          //   return {
-          //     id: chat.id.toString(),
-          //     name: otherUser.name,
-          //     lastMessage: chat.messages?.slice(-1)[0]?.message || 'No messages yet',
-          //     time: chat.updated_at,
-          //     unreadCount: chat.unreadCount ?? 0,
-          //     category: chat.category || 'Others',
-
-          //     label: null,
-          //     type: chat?.type,
-          //     image: otherUser.profile_picture
-          //       ? { uri: otherUser.profile_picture }
-          //       : require('../../../assets/Ellipse 18.png'),
-          //     agentDetails: otherUser,
-          //   };
-          // });
           const chatData = response.data.data.map(chat => {
             const otherUser = chat.participant_b;
-
+            // console.log("chat data", chat);
             return {
               id: chat.id.toString(),
               name: otherUser.name,
@@ -128,6 +110,7 @@ const ChatScreen = () => {
                 ? { uri: otherUser.profile_picture }
                 : require('../../../assets/Ellipse 18.png'),
               agentDetails: otherUser,
+              status:chat?.status
             };
           });
 
@@ -331,7 +314,7 @@ const ChatScreen = () => {
             </TouchableOpacity>
             {showStatusOptions && (
               <View style={styles.dropdownBox}>
-                {['All', 'In Progress', 'Completed'].map(option => (
+                {['All', 'Pending', 'Completed'].map(option => (
                   <TouchableOpacity key={option} onPress={() => { setSelectedStatus(option); setShowStatusOptions(false); }}>
                     <ThemedText style={styles.dropdownText}>{option}</ThemedText>
                   </TouchableOpacity>
@@ -591,9 +574,9 @@ const ChatScreen = () => {
         style={styles.fabButton}
         onPress={() => {
           if (userRole === 'user') {
-            setServiceModalVisible(true); // 👈 show modal for users
+            setServiceModalVisible(true); 
           } else {
-            navigation.navigate('NewChat'); // 👈 navigate for agents/admins
+            navigation.navigate('NewChat'); 
           }
         }}
       >
@@ -614,7 +597,7 @@ const styles = StyleSheet.create({
   activeCategoryButton: { backgroundColor: '#fff' },
   categoryText: { fontSize: 13, color: '#fff', fontWeight: '500' },
   activeCategoryText: { color: '#000' },
-  chatWrapper: { flex: 1, position: 'absolute', top: 190, left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopLeftRadius: 25, borderTopRightRadius: 25, paddingHorizontal: 16, paddingTop: 20 },
+  chatWrapper: { flex: 1, position: 'absolute', top: 190, left: 0, right: 0, bottom: 0, backgroundColor: '#F5F5F7', borderTopLeftRadius: 25, borderTopRightRadius: 25, paddingHorizontal: 16, paddingTop: 20 },
   searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 30, paddingHorizontal: 10, paddingVertical: 5, elevation: 2, marginBottom: 30 },
   searchInput: { flex: 1, marginLeft: 10, color: '#000', fontSize: 14 },
   chatCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
@@ -724,12 +707,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     rowGap:12,
     columnGap:12
-
-
   },
   serviceBox: {
 
-    width: 175,
+    width: 150,
     aspectRatio: 1,
     backgroundColor: '#fff',
     borderRadius: 16,

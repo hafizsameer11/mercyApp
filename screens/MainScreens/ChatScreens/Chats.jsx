@@ -943,7 +943,7 @@ const ChatScreen = () => {
 
                 <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg]}>
                     <View style={isMyMessage ? styles.myBubble : styles.otherBubble}>
-                        <ThemedText style={styles.msgText}>{item.text}</ThemedText>
+                        <ThemedText style={[isMyMessage ? styles.msgText : styles.msgTextleft]}>{item.text}</ThemedText>
                         <ThemedText style={styles.time}>{item.time}</ThemedText>
                     </View>
                 </View>
@@ -1030,7 +1030,7 @@ const ChatScreen = () => {
                                                 <ThemedText style={styles.orderLabel}>Order type</ThemedText>
                                                 <ThemedText style={styles.orderValue}>{orderDetails?.service_type}</ThemedText>
                                             </View>
-                                            <View style={styles.orderInfoRow2}>
+                                            <View style={styles.orderInfoRow3}>
                                                 <ThemedText style={styles.orderLabel}>Order Status</ThemedText>
                                                 <ThemedText style={styles.orderValue}>{orderDetails?.status}</ThemedText>
                                             </View>
@@ -1635,6 +1635,12 @@ const styles = StyleSheet.create({
     orderInfoRow2: {
         flexDirection: 'row', justifyContent: 'space-between',
         padding: 12, backgroundColor: "#F5EAEE",
+        // borderBottomLeftRadius: 10, borderBottomRightRadius: 10,
+        borderWidth: 1, borderColor: '#f3c9d8',
+    },
+    orderInfoRow3: {
+        flexDirection: 'row', justifyContent: 'space-between',
+        padding: 12, backgroundColor: "#F5EAEE",
         borderBottomLeftRadius: 10, borderBottomRightRadius: 10,
         borderWidth: 1, borderColor: '#f3c9d8',
     },
@@ -1662,6 +1668,7 @@ const styles = StyleSheet.create({
         maxWidth: '80%',
     },
     msgText: { color: '#fff' },
+    msgTextleft: { color: 'black' },
     time: { fontSize: 8, color: '#eee', alignSelf: 'flex-end', marginRight: -30 },
 
     inputRow: {

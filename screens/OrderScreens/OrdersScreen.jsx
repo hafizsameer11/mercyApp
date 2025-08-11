@@ -86,7 +86,7 @@ const OrderScreen = () => {
       return {
         id: order.id.toString(),
         type,
-        price: '₦0.00',
+        price: order.total_amount,
         date: order.created_at,
         status: order.status,
         icon,

@@ -5,6 +5,7 @@ import { useFonts } from 'expo-font';
 import { View, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationManager from './utils/NotificationManager';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 // import NotificationManager from './utils/NotificationManager';
 // import NotificationManager from './components/NotificationManager'; // Adjust path if needed
 
@@ -59,9 +60,12 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
-      <AuthNavigator />
-      {token && user && <NotificationManager token={token} user={user} />}
-    </NavigationContainer>
+    <SafeAreaProvider>
+
+      <NavigationContainer>
+        <AuthNavigator />
+        {token && user && <NotificationManager token={token} user={user} />}
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }

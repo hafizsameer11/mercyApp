@@ -187,9 +187,9 @@ const ServiceCategoryList = () => {
                 <View style={{ flex: '1', flexDirection: 'row', gap: 45, marginTop: 10 }}>
                     <ThemedText style={{ fontSize: 10, marginLeft:10
                      }}> Editing</ThemedText>
-                    <ThemedText style={{ fontSize: 10, }}> Manipulation</ThemedText>
-                    <ThemedText style={{ fontSize: 10, marginLeft: -10, }}> Retouching</ThemedText>
-                    <ThemedText style={{ fontSize: 10, marginLeft: 10 }}>Others</ThemedText>
+                    <ThemedText style={{ fontSize: 10,marginLeft:-7 }}> Manipulation</ThemedText>
+                    <ThemedText style={{ fontSize: 10, marginLeft: -15, }}> Retouching</ThemedText>
+                    <ThemedText style={{ fontSize: 10, marginLeft: -10 }}>Others</ThemedText>
                 </View>
             </View>
 
