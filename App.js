@@ -6,10 +6,14 @@ import { View, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationManager from './utils/NotificationManager';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
 // import NotificationManager from './utils/NotificationManager';
 // import NotificationManager from './components/NotificationManager'; // Adjust path if needed
 
 export default function App() {
+  const queryClient = new QueryClient();
+
   const [fontsLoaded] = useFonts({
     // Apercu Pro
     'ApercuPro-Regular': require('./assets/fonts/apercu_regular_pro.otf'),
@@ -61,11 +65,13 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
 
-      <NavigationContainer>
-        <AuthNavigator />
-        {token && user && <NotificationManager token={token} user={user} />}
-      </NavigationContainer>
+        <NavigationContainer>
+          <AuthNavigator />
+          {token && user && <NotificationManager token={token} user={user} />}
+        </NavigationContainer>
+      </QueryClientProvider>
     </SafeAreaProvider>
   );
 }

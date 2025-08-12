@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// FeedPage.js (React Native + TanStack Query, optimistic like)
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,79 +8,145 @@ import {
   TouchableOpacity,
   Dimensions,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import ThemedText from '../../components/ThemedText'; // Adjust the path as necessary
-import API from '../../config/api.config'; // adjust the path
+import ThemedText from '../../components/ThemedText';
+import API from '../../config/api.config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-const categories = ['All', 'Editing', 'Manipulation', 'Retouching', 'Other', 'Testing'];
+const screenWidth = Dimensions.get('window').width;
+const cardWidth = screenWidth * 0.92;
 
 const FeedPage = () => {
+  const queryClient = useQueryClient();
 
-
-  const [feeds, setFeeds] = useState([]);
-  const [categories, setCategories] = useState([]);
+  // UI filter state
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [likedFeeds, setLikedFeeds] = useState({});
 
-  const toggleLike = async (id) => {
-    try {
+  // ---- Query: Feeds + Categories ----
+  const {
+    data,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: ['feeds'],
+    queryFn: async ({ signal }) => {
       const token = await AsyncStorage.getItem('token');
-      await axios.post(API.TOGGLE_LIKE(id), {}, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
+      const res = await axios.get(API.GET_FEEDS, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
       });
-
-      setLikedFeeds((prev) => ({
-        ...prev,
-        [id]: !prev[id],
+      // Expecting { data: { feeds: [...], feedCategories: [...] } }
+      const payload = res?.data?.data || { feeds: [], feedCategories: [] };
+      // Normalize items a bit (fallbacks)
+      const feeds = (payload.feeds || []).map((f) => ({
+        ...f,
+        id: String(f.id),
+        likes_count: Number(f.likes_count ?? 0),
+        is_liked: Boolean(f.is_liked ?? false),
+        category: f.category || 'Other',
+        featured_image: f.featured_image || '',
+        caption: f.caption || '',
       }));
-    } catch (error) {
-      console.log('❌ Error toggling like:', error?.response?.data || error.message);
-    }
-  };
+      const feedCategories = (payload.feedCategories || []).map((c) => c.name);
+      return { feeds, feedCategories };
+    },
+    staleTime: 60_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: true,
+    placeholderData: (prev) => prev ?? { feeds: [], feedCategories: [] },
+  });
 
+  const feeds = data?.feeds ?? [];
+  const categories = useMemo(
+    () => ['All', ...(data?.feedCategories ?? [])],
+    [data?.feedCategories]
+  );
 
-  useEffect(() => {
-    const fetchFeeds = async () => {
-      try {
-        const token = await AsyncStorage.getItem('token');
-        const response = await axios.get(API.GET_FEEDS, {
+  // ---- Mutation: Toggle Like (Optimistic) ----
+  const toggleLikeMutation = useMutation({
+    mutationFn: async (id) => {
+      const token = await AsyncStorage.getItem('token');
+      return axios.post(
+        API.TOGGLE_LIKE(id),
+        {},
+        {
           headers: {
             Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
           },
+        }
+      );
+    },
+    onMutate: async (id) => {
+      // Cancel outgoing refetches so we don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: ['feeds'] });
+
+      // Snapshot previous value
+      const prev = queryClient.getQueryData(['feeds']);
+
+      // Optimistically update the cache
+      queryClient.setQueryData(['feeds'], (old) => {
+        if (!old) return old;
+        const nextFeeds = old.feeds.map((item) => {
+          if (item.id !== String(id)) return item;
+          const willLike = !item.is_liked;
+          return {
+            ...item,
+            is_liked: willLike,
+            likes_count: item.likes_count + (willLike ? 1 : -1),
+          };
         });
+        return { ...old, feeds: nextFeeds };
+      });
 
-        const { feeds, feedCategories } = response.data.data;
-        console.log("feeds", feeds)
-        setFeeds(feeds);
-        setCategories(['All', ...feedCategories.map(cat => cat.name)]);
-      } catch (error) {
-        console.log('❌ Error fetching feeds:', error?.response?.data || error.message);
-      }
-    };
+      // Return context for rollback
+      return { prev };
+    },
+    onError: (_err, _id, ctx) => {
+      // Rollback on failure
+      if (ctx?.prev) queryClient.setQueryData(['feeds'], ctx.prev);
+    },
+    onSettled: () => {
+      // Ensure we’re in sync with server
+      queryClient.invalidateQueries({ queryKey: ['feeds'] });
+    },
+  });
 
-    fetchFeeds();
-  }, []);
+  const toggleLike = (id) => {
+    // fire & forget (instant UI via optimistic cache)
+    toggleLikeMutation.mutate(id);
+  };
 
-
-
+  // ---- Derived filtered list ----
   const filteredFeeds =
     selectedCategory === 'All'
       ? feeds
       : feeds.filter((item) => item.category === selectedCategory);
 
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#992C55" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       {/* Top Section */}
       <View style={styles.topSection}>
-        <ThemedText fontFamily='monaque' weight='bold' style={styles.headerTitle}>Feed</ThemedText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <ThemedText fontFamily="monaque" weight="bold" style={styles.headerTitle}>
+            Feed
+          </ThemedText>
+          {isFetching ? <ActivityIndicator size="small" color="#fff" /> : null}
+        </View>
 
         <ScrollView
           horizontal
@@ -117,7 +184,6 @@ const FeedPage = () => {
           contentContainerStyle={{ paddingTop: 20, paddingBottom: 120 }}
           renderItem={({ item }) => (
             <View style={styles.card}>
-              {/* <Image source={item.image} style={styles.feedImage} resizeMode="cover" /> */}
               <Image
                 source={{ uri: item.featured_image }}
                 style={styles.feedImage}
@@ -129,9 +195,10 @@ const FeedPage = () => {
                 <TouchableOpacity
                   style={styles.likeBtn}
                   onPress={() => toggleLike(item.id)}
+                  disabled={toggleLikeMutation.isPending} // prevent multi-tap spam
                 >
                   <Ionicons
-                    name={likedFeeds[item.id] ? 'heart' : 'heart-outline'}
+                    name={item.is_liked ? 'heart' : 'heart-outline'}
                     size={26}
                     color="#992C55"
                   />
@@ -139,7 +206,7 @@ const FeedPage = () => {
               </View>
 
               <ThemedText style={styles.likes}>
-                {item.likes_count + (likedFeeds[item.id] ? 1 : 0)} likes
+                {item.likes_count} likes
               </ThemedText>
             </View>
           )}
@@ -149,16 +216,9 @@ const FeedPage = () => {
   );
 };
 
-const screenWidth = Dimensions.get('window').width;
-const cardWidth = screenWidth * 0.92;
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
 
-  // Top Section with Header and Category Buttons
   topSection: {
     backgroundColor: '#992C55',
     paddingTop: 80,
@@ -166,16 +226,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     zIndex: 1,
   },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 16,
-  },
-  categoryContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  headerTitle: { fontSize: 26, fontWeight: '600', color: '#fff', marginBottom: 16 },
+  categoryContainer: { flexDirection: 'row', alignItems: 'center' },
   categoryButton: {
     backgroundColor: '#BA3B6B',
     paddingHorizontal: 16,
@@ -183,23 +235,14 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 10,
   },
-  activeCategoryButton: {
-    backgroundColor: '#fff',
-  },
-  categoryText: {
-    fontSize: 13,
-    color: '#fff',
-    fontWeight: '500',
-  },
-  activeCategoryText: {
-    color: '#000',
-  },
+  activeCategoryButton: { backgroundColor: '#fff' },
+  categoryText: { fontSize: 13, color: '#fff', fontWeight: '500' },
+  activeCategoryText: { color: '#000' },
 
-  // Feed card wrapper with elevation and white background
   cardWrapper: {
     flex: 1,
     position: 'absolute',
-    top: 190, // overlaps the maroon top
+    top: 190,
     left: 0,
     right: 0,
     bottom: 0,
@@ -224,23 +267,9 @@ const styles = StyleSheet.create({
     elevation: 3,
     minHeight: 270,
   },
-  feedImage: {
-    width: '100%',
-    height: 220,
-    borderRadius: 15,
-  },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingLeft: 12,
-    // paddingBottom:10,
-  },
-  feedTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#000',
-  },
+  feedImage: { width: '100%', height: 220, borderRadius: 15 },
+  footerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingLeft: 12 },
+  feedTitle: { fontSize: 15, fontWeight: '600', color: '#000' },
   likeBtn: {
     backgroundColor: '#fff',
     paddingVertical: 10,
@@ -249,13 +278,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     borderRadius: 40,
   },
-  likes: {
-    fontSize: 12,
-    color: '#992C55',
-    marginTop: -14,
-    paddingLeft: 12,
-    paddingBottom: 10,
-  },
+  likes: { fontSize: 12, color: '#992C55', marginTop: -14, paddingLeft: 12, paddingBottom: 10 },
 });
 
 export default FeedPage;

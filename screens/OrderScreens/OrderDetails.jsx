@@ -56,6 +56,7 @@ const OrderDetails = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { order } = route.params || {};
+  console.log("order", order)
 
   if (!order) return null;
 
@@ -124,12 +125,26 @@ const { icon, label, bgColor } = getIconInfo(order.service_type);
       </View>
 
       {/* Chat Button */}
-      <TouchableOpacity
-        style={styles.chatBtn}
-        onPress={() => navigation.navigate('ChatScreen', { chatId: order.chat_id })}
-      >
-        <ThemedText style={styles.chatBtnText}>View Chat</ThemedText>
-      </TouchableOpacity>
+    <TouchableOpacity
+  style={styles.chatBtn}
+  onPress={() =>
+    navigation.navigate('Chat', {
+      chat_id: order.chat_id,
+      userRole: 'agent', // or order.agent.role
+      user: order.agent?.name || 'Unknown',
+      agent: {
+        name: order.agent?.name || 'Unknown',
+        image: order.agent?.profile_picture
+          ? { uri: order.agent.profile_picture }
+          : require('../../assets/Ellipse 18.png'), // fallback
+      },
+      service: order.service_type || 'General',
+    })
+  }
+>
+  <ThemedText style={styles.chatBtnText}>View Chat</ThemedText>
+</TouchableOpacity>
+
     </View>
   );
 };

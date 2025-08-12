@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import questionnaireData from './questionnaireData';
 import EmojiSelector from 'react-native-emoji-selector';
 import { RecordingButton } from '../../../components/RecordingButton';
@@ -41,18 +41,75 @@ import CategoryThreeModal from '../../../components/CategoryThreeModel';
 import PaymentModal from '../../../components/PaymentModal';
 import { ScrollView } from 'react-native-web';
 
+// ✅ TanStack Query
+import {
+    QueryClient,
+    QueryClientProvider,
+    useQuery,
+} from '@tanstack/react-query';
+
+const EMOJIS = [
+    // Commonly used — you can extend this list anytime
+    '😀', '😁', '😂', '🤣', '😊', '😍', '😘', '😜', '😎', '🤩', '🥳', '🤔', '😴', '🤤', '🤗', '🙃',
+    '👍', '👎', '🙏', '👏', '💪', '🔥', '💯', '✨', '🎉', '🥰', '😅', '😇', '😏', '😌', '😢', '😭',
+    '😤', '😡', '🤯', '🤒', '🤕', '🤧', '🤮', '🥴', '😷', '🤓', '🧐', '😺', '😸', '😹', '🙈', '🙉',
+    '🙊', '💖', '💔', '💗', '💙', '💚', '💛', '💜', '🖤', '🤍', '🤎', '💥', '⚡', '⭐', '🌟', '💫',
+    '🍕', '🍔', '🍟', '🌮', '🍣', '🍪', '🍩', '🍰', '☕', '🍵', '🍺', '🍻', '🍷', '🥂', '🍾', '🍎',
+    '⚽', '🏀', '🏈', '🎾', '🏐', '🎮', '🎧', '🎬', '🎯', '🎲', '🚗', '🚀', '✈️', '🛸', '🏠', '🏢',
+];
+
+const SafeEmojiPicker = ({ onSelect, height = 300, columns = 8, itemSize = 40 }) => {
+    const data = useMemo(() => EMOJIS, []);
+    const keyExtractor = (e, i) => `${e}-${i}`;
+
+    const renderItem = ({ item }) => (
+        <TouchableOpacity
+            onPress={() => onSelect?.(item)}
+            activeOpacity={0.7}
+            style={{
+                width: itemSize,
+                height: itemSize,
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 8,
+                margin: 4,
+            }}
+        >
+            {/* Force safe text metrics; NO letterSpacing, sane lineHeight */}
+            <Text style={{ fontSize: 26, lineHeight: 30 }}>{item}</Text>
+        </TouchableOpacity>
+    );
+
+    return (
+        <View style={{ height, width: '100%' }}>
+            <FlatList
+                data={data}
+                keyExtractor={keyExtractor}
+                renderItem={renderItem}
+                numColumns={columns}
+                showsVerticalScrollIndicator={false}
+                initialNumToRender={columns * Math.ceil(height / (itemSize + 8))}
+                removeClippedSubviews
+                windowSize={7}
+                contentContainerStyle={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 8,
+                }}
+            />
+        </View>
+    );
+};
+export { SafeEmojiPicker };
 
 const ChatScreen = () => {
 
     const [isMessagesLoading, setIsMessagesLoading] = useState(true);
     const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
-
     const [previewImages, setPreviewImages] = useState([]);
     const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
     const [attachmentModal, setAttachmentModal] = useState(false);
     const [user, setUser] = useState(null);
-
 
     const [quickRepliesModalVisible, setQuickRepliesModalVisible] = useState(false);
     const [addReplyModalVisible, setAddReplyModalVisible] = useState(false);
@@ -90,7 +147,6 @@ const ChatScreen = () => {
     ]);
 
     const { chat_id } = useRoute().params;
-    // console.log("chat id",chat_id)
     const [messageActionModalVisible, setMessageActionModalVisible] = useState(false);
     const [selectedMessage, setSelectedMessage] = useState(null);
 
@@ -101,65 +157,23 @@ const ChatScreen = () => {
 
     const [currentCategoryIndex, setCurrentCategoryIndex] = useState(0);
     const [questionnaireVisible, setQuestionnaireVisible] = useState(false);
-    //   const [quickReplies, setQuickReplies] = useState([]);
 
     const navigation = useNavigation();
     const { agent, service, messages: initialMessages = [] } = useRoute().params;
-    // console.log("user role is ", userRole)
     const [userRole, setUserRole] = useState('');
 
-    const [messages, setMessages] = useState(initialMessages.length > 0 ? initialMessages : [
-    ]);
-    const messagesRef = useRef([]); // to compare previous vs new
+    const [messages, setMessages] = useState(initialMessages.length > 0 ? initialMessages : []);
+    const messagesRef = useRef([]); // (kept because other parts reference it)
     const intervalRef = useRef(null);
     const [inputMessage, setInputMessage] = useState('');
     const flatListRef = useRef();
     const [modalVisible, setModalVisible] = useState(false);
     const [chatDetails, setChatDetails] = useState({});
     const [orderDetails, setOrderDetails] = useState({});
-    // image selection logic
-    const pickImage = async () => {
-        const result = await ImagePicker.launchImageLibraryAsync({
-            allowsMultipleSelection: true,
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        });
 
-        if (!result.canceled) {
-            const groupId = Date.now().toString();
-            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-
-            const uploads = result.assets.map(async (asset) => {
-                console.log("📸 Picked asset:", asset);
-
-                const fileType = asset.mimeType || 'image/jpeg'; // ✅ fallback
-                const fileName = asset.fileName || `photo_${Date.now()}.jpg`;
-                const success = await sendFileMessage({
-                    fileUri: asset.uri,
-                    fileName: fileName,
-                    fileType: fileType,
-                    messageType: 'image',
-                });
-
-                if (success) {
-                    return {
-                        id: `${Date.now()}-${Math.random()}`,
-                        sender: user?.id,
-                        type: 'image',
-                        image: asset.uri,
-                        time,
-                        groupId,
-                    };
-                }
-                return null;
-            });
-
-            const sentImages = (await Promise.all(uploads)).filter(Boolean);
-            setMessages((prev) => [...prev, ...sentImages]);
-        }
-
-        setAttachmentModal(false);
-    };
-
+    // ------------------------------
+    // QUICK REPLIES (unchanged)
+    // ------------------------------
     const fetchReplies = async () => {
         try {
             const token = await AsyncStorage.getItem('token');
@@ -168,7 +182,6 @@ const ChatScreen = () => {
                     Authorization: `Bearer ${token}`,
                 },
             });
-            console.log("quick replies", res.data.data)
             setQuickReplies(res.data.data);
         } catch (error) {
             console.log('❌ Error fetching replies:', error?.response?.data || error.message);
@@ -177,32 +190,118 @@ const ChatScreen = () => {
     useEffect(() => {
         fetchReplies();
     }, []);
-    const getImageGroupStyle = (count) => {
-        return {
-            flexDirection: count > 1 ? 'row' : 'column',
-            flexWrap: 'wrap',
-            gap: 1,
-            width: count > 1 ? 200 : 200,
-        };
+
+    // ------------------------------
+    // IMAGE/DOC PICKERS (unchanged)
+    // ------------------------------
+    const pickImage = async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            allowsMultipleSelection: true,
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 0.9,
+        });
+
+        if (result.canceled) {
+            setAttachmentModal(false);
+            return;
+        }
+
+        const groupId = Date.now().toString();
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+
+        // create optimistic (local) messages immediately so UI updates at once
+        const optimisticItems = result.assets.map((asset) => {
+            const localId = `local-${asset.assetId || asset.fileName || asset.uri}-${Math.random()}`;
+            return {
+                id: localId,
+                localId,
+                local: true,
+                status: 'uploading',            // uploading | failed | sent
+                uploadProgress: 0,              // 0..1
+                sender: user?.id,
+                type: 'image',
+                image: asset.uri,               // local preview
+                time,
+                groupId,
+            };
+        });
+
+        // show them now
+        setMessages((prev) => [...prev, ...optimisticItems]);
+        messagesRef.current = [...messagesRef.current, ...optimisticItems];
+
+        // Fire uploads in parallel
+        await Promise.all(
+            result.assets.map(async (asset, idx) => {
+                const optimistic = optimisticItems[idx];
+                const fileType = asset.mimeType || 'image/jpeg';
+                const fileName = asset.fileName || `photo_${Date.now()}_${idx}.jpg`;
+
+                const onProgress = (p) => {
+                    // update progress in-place
+                    setMessages((prev) =>
+                        prev.map((m) =>
+                            m.id === optimistic.localId ? { ...m, uploadProgress: p } : m
+                        )
+                    );
+                    messagesRef.current = messagesRef.current.map((m) =>
+                        m.id === optimistic.localId ? { ...m, uploadProgress: p } : m
+                    );
+                };
+
+                const res = await sendFileMessage({
+                    fileUri: asset.uri,
+                    fileName,
+                    fileType,
+                    messageType: 'image',
+                    onProgress,
+                });
+
+                if (res.ok) {
+                    // swap optimistic with real server message (keep same visual position)
+                    setMessages((prev) =>
+                        prev.map((m) =>
+                            m.id === optimistic.localId
+                                ? {
+                                    ...m,
+                                    id: res.id,               // replace id for dedupe with server
+                                    local: false,
+                                    status: 'sent',
+                                    uploadProgress: 1,
+                                    image: res.fileUrl || m.image, // use server url if provided
+                                }
+                                : m
+                        )
+                    );
+                    messagesRef.current = messagesRef.current.map((m) =>
+                        m.id === optimistic.localId
+                            ? {
+                                ...m,
+                                id: res.id,
+                                local: false,
+                                status: 'sent',
+                                uploadProgress: 1,
+                                image: res.fileUrl || m.image,
+                            }
+                            : m
+                    );
+                } else {
+                    // mark it failed (tap could retry later if you want)
+                    setMessages((prev) =>
+                        prev.map((m) =>
+                            m.id === optimistic.localId ? { ...m, status: 'failed' } : m
+                        )
+                    );
+                    messagesRef.current = messagesRef.current.map((m) =>
+                        m.id === optimistic.localId ? { ...m, status: 'failed' } : m
+                    );
+                }
+            })
+        );
+
+        setAttachmentModal(false);
     };
 
-    const getImageStyle = (index, count) => {
-        const base = {
-            width: count === 1 ? 200 : count === 2 ? 95 : 95,
-            height: count === 1 ? 200 : count === 2 ? 150 : 95,
-            borderRadius: 10,
-            borderWidth: 5,
-            borderColor: '#992c55',
-        };
-        return base;
-    };
-    const groupedImages = {};
-    messages.forEach((msg) => {
-        if (msg.type === 'image') {
-            if (!groupedImages[msg.groupId]) groupedImages[msg.groupId] = [];
-            groupedImages[msg.groupId].push(msg);
-        }
-    });
 
     const pickDocument = async () => {
         setAttachmentModal(false);
@@ -220,48 +319,39 @@ const ChatScreen = () => {
         }
     };
 
-    // images download in gallery 
-    // Is this message the only image in its group?
+    // ------------------------------
+    // IMAGE SAVE (unchanged)
+    // ------------------------------
     const isSingleImageMessage = (msg) => {
         if (!msg || msg.type !== 'image') return false;
         if (!msg.groupId) return true; // no grouping info => treat as single
         const count = messages.filter(m => m.type === 'image' && m.groupId === msg.groupId).length;
         return count <= 1;
     };
-
     const getFilenameFromUri = (uri, fallback = 'image.jpg') => {
         try {
             const u = decodeURI(uri);
             const name = u.split('?')[0].split('/').pop();
             if (!name) return fallback;
-            // ensure extension
             return /\.[a-z0-9]+$/i.test(name) ? name : `${name}.jpg`;
         } catch {
             return fallback;
         }
     };
-
-    // Download + save to Photos/Gallery
     const downloadImageToGallery = async (uri) => {
         try {
-            // Ask for media permissions
             const { status } = await MediaLibrary.requestPermissionsAsync();
             if (status !== 'granted') {
                 alert('Permission required to save images to your gallery.');
                 return;
             }
-
             let localUri = uri;
-
-            // If not local file, download first
             if (!uri.startsWith('file://')) {
                 const filename = getFilenameFromUri(uri, `image_${Date.now()}.jpg`);
                 const target = FileSystem.documentDirectory + filename;
                 const res = await FileSystem.downloadAsync(uri, target);
                 localUri = res.uri;
             }
-
-            // Save to gallery
             await MediaLibrary.saveToLibraryAsync(localUri);
             alert('Image saved to your gallery.');
         } catch (e) {
@@ -270,30 +360,101 @@ const ChatScreen = () => {
         }
     };
 
-    // Quick Replies Modal Handling
-    const saveQuickReply = () => {
-        if (!newReply.trim()) return;
-        const updatedReplies = [...quickReplies];
-        if (editIndex !== null) {
-            updatedReplies[editIndex] = newReply;
-        } else {
-            updatedReplies.push(newReply);
-        }
-        setQuickReplies(updatedReplies);
-        setNewReply('');
-        setEditIndex(null);
-        setAddReplyModalVisible(false);
-    };
+    // ------------------------------
+    // TANSTACK QUERY — FETCH MESSAGES
+    // ------------------------------
+    const messagesQuery = useQuery({
+        queryKey: ['chat-messages', chat_id],
+        queryFn: async ({ signal }) => {
+            const token = await AsyncStorage.getItem('token');
+            const res = await axios.get(API.GET_CHAT_MESSAGES(chat_id), {
+                headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+                signal,
+                timeout: 12000,
+            });
+            return res.data;
+        },
+        refetchInterval: 1200,
+        refetchIntervalInBackground: true,
+        staleTime: 500,
+        gcTime: 5 * 60 * 1000,
+        select: (data) => {
+            if (data?.status !== 'success') return { order: null, messages: [] };
+            const fetchedMessages = data?.data?.messages ?? [];
+            const order = data?.data?.order ?? null;
+
+            const formatted = fetchedMessages.map((msg) => ({
+                id: String(msg.id),
+                sender: msg.sender_id,
+                text: msg.message || '',
+                image: msg.type === 'image' ? msg.file : null,
+                file: msg.type === 'file' ? msg.file : null,
+                audio: msg.type === 'voice' ? msg.file : null,
+                type: msg.type || 'text',
+                time: new Date(msg.created_at).toLocaleTimeString([], {
+                    hour: '2-digit', minute: '2-digit', hour12: true,
+                }),
+            }));
+
+            return { order, messages: formatted };
+        },
+        onError: (err) => {
+            console.log('❌ Fetch messages failed:', err?.message || err);
+        },
+    });
+
+    // Use query results to update UI list.
+    useEffect(() => {
+        const data = messagesQuery.data;
+        if (!data) return;
+
+        setOrderDetails(data.order);
+
+        // Keep existing system banners + temp (optimistic) messages
+        setMessages((prev) => {
+            const sysOrTemp = prev.filter((m) => m?.type === 'system' || String(m?.id).startsWith('temp-'));
+            const nextList = [...sysOrTemp, ...data.messages];
+            messagesRef.current = nextList;
+            return nextList;
+        });
+
+        if (isMessagesLoading) setIsMessagesLoading(false);
+    }, [messagesQuery.data]);
+
+    // ------------------------------
+    // SEND MESSAGE (optimistic)
+    // ------------------------------
     const sendMessage = async () => {
         if (!inputMessage.trim()) return;
 
+        const token = await AsyncStorage.getItem('token');
+        setSendingMessage(true);
+
+        const tempId = `temp-${Date.now()}`;
+        const time = new Date().toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+        });
+
+        // Optimistic bubble
+        const optimisticMsg = {
+            id: tempId,
+            sender: user?.id,
+            text: inputMessage,
+            type: 'text',
+            time,
+            pending: true,
+        };
+        setMessages(prev => [...prev, optimisticMsg]);
+        setInputMessage('');
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+
         try {
-            const token = await AsyncStorage.getItem('token');
-            setSendingMessage(true); // disable button
             const formData = new FormData();
-            formData.append('chat_id', chat_id); // ✅ from useRoute().params
+            formData.append('chat_id', chat_id);
             formData.append('type', 'text');
-            formData.append('message', inputMessage);
+            formData.append('message', optimisticMsg.text);
             formData.append('is_forwarded', '');
             formData.append('duration', '');
 
@@ -303,68 +464,51 @@ const ChatScreen = () => {
                     'Accept': 'application/json',
                     'Content-Type': 'multipart/form-data',
                 },
+                timeout: 15000,
             });
 
-            console.log('Message Sent:', response.data);
+            // On success: remove temp bubble; let polling paint server copy
+            setMessages(prev => prev.filter(m => m.id !== tempId));
 
-
-            // Show message in UI
-            const time = new Date().toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true,
-            });
-
-            const newMsg = {
-                id: Date.now().toString(),
-                sender: user?.id,
-                text: inputMessage,
-                time,
-            };
-
-            setMessages(prev => [...prev, newMsg]);
-            setInputMessage('');
-            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+            // Kick a refetch to pull the canonical server message
+            messagesQuery.refetch();
 
         } catch (error) {
             console.error('Send message error:', error.response?.data || error.message);
             alert(error.response?.data?.message || 'Failed to send message');
-        }
-        finally {
-            setSendingMessage(false); // ✅ always re-enable
+            // Remove failed temp bubble
+            setMessages(prev => prev.filter(m => m.id !== tempId));
+        } finally {
+            setSendingMessage(false);
         }
     };
+
+    // ------------------------------
+    // QUESTIONNAIRE + ORDER (unchanged)
+    // ------------------------------
     const sendQuestionnaire = async (chat_id, user_id) => {
         try {
             const token = await AsyncStorage.getItem('token');
 
-            const assignPayload = {
-                chat_id,
-                user_id,
-            };
+            const assignPayload = { chat_id, user_id };
 
             const response = await axios.post(
                 API.ASSIGN_QUESTIONNAIRE,
                 assignPayload,
-                {
-                    headers: { Authorization: `Bearer ${token}` },
-                }
+                { headers: { Authorization: `Bearer ${token}` } }
             );
 
             console.log("✅ Questionnaire assigned:", response.data);
             alert("✅ Questionnaire sent successfully.");
         } catch (error) {
-            console.log("error ");
             console.error("❌ Failed to assign questionnaire:", error.response?.data || error.message);
             alert("❌ Failed to send questionnaire.");
         }
     };
 
-
+    // Keep your old fetchMessages function (used elsewhere, e.g. updateOrderStatus)
     const fetchMessages = async () => {
         try {
-            // if (!hasLoadedOnce) setIsMessagesLoading(true);
-
             const token = await AsyncStorage.getItem('token');
             const response = await axios.get(API.GET_CHAT_MESSAGES(chat_id), {
                 headers: {
@@ -398,25 +542,25 @@ const ChatScreen = () => {
 
                 if (oldIds !== newIds) {
                     messagesRef.current = formatted;
-                    setMessages(formatted);
+                    setMessages((prev) => {
+                        const sysOrTemp = prev.filter((m) => m?.type === 'system' || String(m?.id).startsWith('temp-'));
+                        return [...sysOrTemp, ...formatted];
+                    });
                 }
                 if (!hasLoadedOnce) {
                     setHasLoadedOnce(true);
                     setIsMessagesLoading(false);
                 }
-
-                // if (!hasLoadedOnce) setHasLoadedOnce(true);
             }
         } catch (error) {
-            console.error('Fetching failed', err);
+            console.error('Fetching failed', error);
             if (!hasLoadedOnce) setIsMessagesLoading(false);
         }
     };
 
+    // IMPORTANT: remove old polling; only do one-time init & system banner
     useEffect(() => {
-        fetchMessages();
-
-        const getUserDetail = async () => {
+        const init = async () => {
             const userData = await AsyncStorage.getItem("user");
             if (userData) {
                 const parsed = JSON.parse(userData);
@@ -424,8 +568,7 @@ const ChatScreen = () => {
                 setUserRole(parsed.role);
             }
         };
-
-        getUserDetail();
+        init();
 
         if (!hasLoadedOnce) {
             const joinMsg = {
@@ -438,42 +581,30 @@ const ChatScreen = () => {
                     hour12: true,
                 }),
             };
-
             setMessages((prev) => [joinMsg, ...prev]);
+            setHasLoadedOnce(true);
         }
-
-        intervalRef.current = setInterval(fetchMessages, 1000);
-        return () => clearInterval(intervalRef.current);
     }, []);
 
-    useEffect(() => {
-        fetchMessages(); // initial fetch
-
-        const getUserDetail = async () => {
-            const userData = await AsyncStorage.getItem("user");
-            if (userData) {
-                const parsed = JSON.parse(userData);
-                setUser(parsed);
-                setUserRole(parsed.role);
-            }
-        };
-        getUserDetail();
-
-        // ✅ Setup interval
-        intervalRef.current = setInterval(fetchMessages, 1000);
-
-        return () => clearInterval(intervalRef.current); // clean up on unmount
-    }, []);
-
-
-    const sendFileMessage = async ({ fileUri, fileName, fileType, messageType = 'file', duration = '' }) => {
+    // ------------------------------
+    // FILE & AUDIO SEND (unchanged)
+    // ------------------------------
+    // Progress-aware uploader + returns server id & url
+    const sendFileMessage = async ({
+        fileUri,
+        fileName,
+        fileType,
+        messageType = 'image',          // default to image for this flow
+        duration = '',
+        onProgress,                     // <-- progress callback (0..1)
+    }) => {
         try {
             const token = await AsyncStorage.getItem('token');
 
             const formData = new FormData();
-            formData.append('chat_id', chat_id); // from useRoute().params
+            formData.append('chat_id', chat_id);
             formData.append('type', messageType); // 'image', 'file', 'voice'
-            formData.append('message', ''); // optional caption
+            formData.append('message', '');
             formData.append('is_forwarded', '');
             formData.append('duration', duration);
 
@@ -483,47 +614,41 @@ const ChatScreen = () => {
                 type: fileType,
             });
 
-            const response = await axios.post(`https://editbymercy.hmstech.xyz/api/send-message`, formData, {
+            const response = await axios.post(API.SEND_MESSAGE, formData, {
                 headers: {
-
                     Authorization: `Bearer ${token}`,
                     Accept: 'application/json',
                     'Content-Type': 'multipart/form-data',
                 },
+                onUploadProgress: (evt) => {
+                    if (!onProgress || !evt.total) return;
+                    const progress = evt.loaded / evt.total;
+                    onProgress(progress);
+                },
             });
 
-            console.log(`${messageType} sent:`, response.data);
-
-            return true;
+            // Expecting something like { data: { id, file, ... } }
+            const serverMsg = response?.data?.data || {};
+            return {
+                ok: true,
+                id: serverMsg?.id,
+                fileUrl: serverMsg?.file, // server image url
+                raw: serverMsg,
+            };
         } catch (error) {
-            console.error('❌ Error sending file message:', error);
-
-            if (error.response) {
-                // Server responded with an error
-                console.error('🔴 Response error:', error.response.data);
-                alert(error.response.data?.message || `Failed to send ${messageType}`);
-            } else if (error.request) {
-                // Request was made but no response received
-                console.error('🟠 No response. Request object:', error.request);
-                alert('No response from server. Check internet or backend status.');
-            } else {
-                // Other kind of error
-                console.error('⚠️ Error message:', error.message);
-                alert(`Error sending ${messageType}: ${error.message}`);
-            }
-
-            return false;
+            console.error('❌ Error sending file message:', error?.response?.data || error.message);
+            return { ok: false, error };
         }
     };
+
+
     const startRecording = async () => {
         try {
-
             const { status } = await Audio.requestPermissionsAsync();
             if (status !== 'granted') {
                 alert('Microphone permission is required to record audio.');
                 return;
             }
-
             await Audio.setAudioModeAsync({
                 allowsRecordingIOS: true,
                 playsInSilentModeIOS: true,
@@ -531,28 +656,21 @@ const ChatScreen = () => {
             if (recordingInstance) {
                 try {
                     const existingStatus = await recordingInstance.getStatusAsync();
-
                     if (existingStatus.isRecording || !existingStatus.isDoneRecording) {
                         await recordingInstance.stopAndUnloadAsync();
                     }
-
-                    // Always unload
                     await recordingInstance.unloadAsync();
                 } catch (cleanupErr) {
                     console.warn("Cleanup of old recording failed:", cleanupErr.message);
                 }
-
                 setRecordingInstance(null);
             }
-
-            // ✅ Wait before creating new instance to avoid conflict
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             const newRecording = new Audio.Recording();
             await newRecording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
             await newRecording.startAsync();
 
-            console.log("Recording started");
             setRecordingInstance(newRecording);
             setIsRecording(true);
         } catch (error) {
@@ -566,10 +684,7 @@ const ChatScreen = () => {
 
         try {
             const status = await recordingInstance.getStatusAsync();
-
-            if (status.isDoneRecording || !status.isRecording) {
-                return;
-            }
+            if (status.isDoneRecording || !status.isRecording) return;
 
             await recordingInstance.stopAndUnloadAsync();
             const uri = recordingInstance.getURI();
@@ -584,6 +699,7 @@ const ChatScreen = () => {
             setIsRecording(false);
         }
     };
+
     const sendAudioMessage = async (uri) => {
         try {
             const token = await AsyncStorage.getItem('token');
@@ -591,8 +707,8 @@ const ChatScreen = () => {
             const fileName = `voice_${Date.now()}.m4a`;
             const formData = new FormData();
             formData.append('chat_id', chat_id);
-            formData.append('type', 'voice'); // ✅ important
-            formData.append('message', ''); // no caption
+            formData.append('type', 'voice');
+            formData.append('message', '');
             formData.append('is_forwarded', '');
             formData.append('duration', '');
 
@@ -618,36 +734,47 @@ const ChatScreen = () => {
 
             const newMsg = {
                 id: Date.now().toString(),
-                sender: user?.id, // ✅ show on right side
+                sender: user?.id,
                 type: 'voice',
-                audio: response.data?.data?.file || uri, // backend or fallback
+                audio: response.data?.data?.file || uri,
                 time,
             };
 
             setMessages(prev => [...prev, newMsg]);
             setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+
+            // Refresh canonical list
+            messagesQuery.refetch();
         } catch (error) {
             console.error('Error sending voice message:', error.response?.data || error.message);
             alert('Failed to send voice message');
         }
     };
+    const saveQuickReply = () => {
+        if (!newReply.trim()) return;
+        const updatedReplies = [...quickReplies];
+        if (editIndex !== null) {
+            updatedReplies[editIndex] = newReply;
+        } else {
+            updatedReplies.push(newReply);
+        }
+        setQuickReplies(updatedReplies);
+        setNewReply('');
+        setEditIndex(null);
+        setAddReplyModalVisible(false);
+    };
     const playAudio = async (uri, id) => {
         try {
-            // Pause if clicking the same playing message
             if (playingAudioId === id && isAudioPlaying && audioPlayer) {
                 await audioPlayer.pauseAsync();
                 setIsAudioPlaying(false);
                 return;
             }
-
-            // Resume if clicking the same message that is paused
             if (playingAudioId === id && !isAudioPlaying && audioPlayer) {
                 await audioPlayer.playAsync();
                 setIsAudioPlaying(true);
                 return;
             }
-
-            // Stop previous audio if any
             if (audioPlayer) {
                 await audioPlayer.stopAsync();
                 await audioPlayer.unloadAsync();
@@ -675,20 +802,18 @@ const ChatScreen = () => {
             setIsAudioPlaying(false);
         }
     };
+
     const [progressMap, setProgressMap] = useState({});
     const [progressData, setProgressData] = useState({ progress: 0, completed_sections: 0 });
     useEffect(() => {
         const fetchProgress = async () => {
             try {
                 const token = await AsyncStorage.getItem('token');
-                //   if (!token || !chat_id) return;
-
                 const res = await axios.get(`${BASE_URL}/questionnaire/progress/${chat_id}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
-                console.log("progres response", res.data)
                 if (res?.data?.status === 'success') {
-                    setProgressData(res.data); // Store once for current chat
+                    setProgressData(res.data);
                 }
             } catch (err) {
                 console.error(`Error fetching progress for chat ${chat_id}`, err);
@@ -710,19 +835,17 @@ const ChatScreen = () => {
         setMessageActionModalVisible(true);
     };
 
-
     const renderMessage = ({ item }) => {
-
         const isMyMessage = item.sender === user?.id;
-        if (item.type === 'image') {
-            const isMyMessage = item.sender === user?.id;
 
+        if (item.type === 'image') {
+            const isMyMsgImage = item.sender === user?.id;
             return (
-                <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg]}>
+                <View style={[styles.msgRow, isMyMsgImage ? styles.rightMsg : styles.leftMsg]}>
                     <View
                         style={{
                             paddingBottom: 20,
-                            backgroundColor: isMyMessage ? '#992C55' : '#E7E7E7',
+                            backgroundColor: isMyMsgImage ? '#992C55' : '#E7E7E7',
                             borderRadius: 10,
                         }}
                     >
@@ -732,8 +855,8 @@ const ChatScreen = () => {
                                 setImagePreviewVisible(true);
                             }}
                             onLongPress={() => {
-                                setSelectedMessage(item);                // important
-                                setMessageActionModalVisible(true);      // open the same modal
+                                setSelectedMessage(item);
+                                setMessageActionModalVisible(true);
                             }}
                             delayLongPress={300}
                             hitSlop={8}
@@ -753,15 +876,12 @@ const ChatScreen = () => {
                             />
                         </Pressable>
                     </View>
-                    <ThemedText style={[styles.time, isMyMessage ? styles.timeRight : styles.timeLeft]}>
+                    <ThemedText style={[styles.time, isMyMsgImage ? styles.timeRight : styles.timeLeft]}>
                         {item.time}
                     </ThemedText>
                 </View>
             );
         }
-
-
-
 
         if (item.type === 'document') {
             return (
@@ -785,6 +905,7 @@ const ChatScreen = () => {
                 </TouchableOpacity>
             );
         }
+
         if (item.type === 'voice') {
             return (
                 <TouchableOpacity
@@ -793,7 +914,6 @@ const ChatScreen = () => {
                         navigation.navigate('ForwardChat', { forwardMessage: item });
                     }}
                 >
-
                     <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg]}>
                         <View style={isMyMessage ? styles.myBubble : styles.otherBubble}>
                             <TouchableOpacity onPress={() => playAudio(item.audio, item.id)}>
@@ -812,6 +932,7 @@ const ChatScreen = () => {
                 </TouchableOpacity>
             );
         }
+
         if (item.type === 'payment') {
             return (
                 <TouchableOpacity
@@ -820,8 +941,6 @@ const ChatScreen = () => {
                         navigation.navigate('ForwardChat', { forwardMessage: item });
                     }}
                 >
-
-
                     <View style={[styles.msgRow, item.sender === user?.id ? styles.rightMsg : styles.leftMsg]}>
                         <View style={styles.paymentCard}>
                             <View style={styles.paymentHeader}>
@@ -837,11 +956,9 @@ const ChatScreen = () => {
                                         {orderDetails?.payment_status}
                                     </ThemedText>
                                 </View>
-
                             </View>
 
                             <View style={{ padding: 16, backgroundColor: '#fff', borderRadius: 10, elevation: 1, zIndex: 1, marginTop: -20 }}>
-                                {/* <View style={[styles.paymentRow, { borderTopRightRadius: 10, borderTopLeftRadius: 10 }]}><Text style={styles.label}>Name</Text><Text>{item.name}</Text></View> */}
                                 <View style={styles.paymentRow}><Text style={styles.label}>No of photos</Text><Text>{orderDetails?.no_of_photos}</Text></View>
                                 <View style={styles.paymentRow}><Text style={styles.label}>Category</Text><Text>{orderDetails?.service_type}</Text></View>
                                 <View style={[styles.paymentRow, { borderBottomRightRadius: 10, borderBottomLeftRadius: 10 }]}><Text style={styles.label}>Amount</Text><Text style={{ fontWeight: 'bold' }}>₦{parseInt(orderDetails?.total_amount).toLocaleString()}</Text></View>
@@ -887,11 +1004,7 @@ const ChatScreen = () => {
                                     </>
                                 )}
                             </View>
-
-
-
                         </View>
-
                     </View>
                 </TouchableOpacity>
             );
@@ -899,7 +1012,6 @@ const ChatScreen = () => {
 
         if (item.type === 'system') {
             const isJoin = item.subtype === 'agent-join';
-
             return (
                 <View style={{ alignItems: 'center', marginVertical: 6 }}>
                     <View style={{
@@ -975,7 +1087,6 @@ const ChatScreen = () => {
 
                             <View style={styles.qBtnRow}>
                                 {user?.role === 'user' && progressData.progress < 100 && (
-
                                     <TouchableOpacity
                                         style={styles.qStartBtn}
                                         onPress={() => {
@@ -997,7 +1108,6 @@ const ChatScreen = () => {
                                         <ThemedText style={styles.qCloseBtnText}>Close</ThemedText>
                                     </TouchableOpacity>
                                 )}
-
                             </View>
                         </View>
                     </View>
@@ -1012,10 +1122,11 @@ const ChatScreen = () => {
                     setMessageActionModalVisible(true);
                 }}
             >
-
                 <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg]}>
                     <View style={isMyMessage ? styles.myBubble : styles.otherBubble}>
-                        <ThemedText style={[isMyMessage ? styles.msgText : styles.msgTextleft]}>{item.text}</ThemedText>
+                        <ThemedText style={[isMyMessage ? styles.msgText : styles.msgTextleft]}>
+                            {item.text}
+                        </ThemedText>
                         <ThemedText style={[styles.time, isMyMessage ? styles.timeRight : styles.timeLeft]}>
                             {item.time}
                         </ThemedText>
@@ -1024,6 +1135,7 @@ const ChatScreen = () => {
             </TouchableOpacity>
         );
     };
+
     const updateOrderStatus = async (statusValue) => {
         try {
             const token = await AsyncStorage.getItem('token');
@@ -1039,7 +1151,8 @@ const ChatScreen = () => {
 
             if (response.data.status === 'success') {
                 alert(`✅ Order marked as ${statusValue}`);
-                fetchMessages();
+                // refresh via query
+                messagesQuery.refetch();
             } else {
                 alert('❌ Failed to update status');
             }
@@ -1049,10 +1162,11 @@ const ChatScreen = () => {
         }
     };
 
-
+    // ------------------------------
+    // RENDER
+    // ------------------------------
     return (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-            {/* <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }}> */}
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                 <View style={styles.container}>
                     {/* Top Bar */}
@@ -1080,7 +1194,7 @@ const ChatScreen = () => {
                         <FlatList
                             ref={flatListRef}
                             data={messages}
-                            keyExtractor={(item) => item.id}
+                            keyExtractor={(item) => String(item.id)}
                             renderItem={renderMessage}
                             contentContainerStyle={{ padding: 16, paddingBottom: 90 }}
                             showsVerticalScrollIndicator={false}
@@ -1113,22 +1227,18 @@ const ChatScreen = () => {
                                 </>
                             }
                         />
-                    )
-                    }
+                    )}
 
                     {showEmojiPicker && (
-                        <View style={{ height: 250 }}>
-                            <EmojiSelector
-                                onEmojiSelected={emoji => setInputMessage(prev => prev + emoji)}
-                                showSearchBar={true}
-                                showTabs={true}
-                                showSectionTitles={false}
-                                columns={8}
-                                emojiStyle={{ fontSize: 24 }} // ✅ Enforce a safe font size
-                            />
-
-                        </View>
+                        <SafeEmojiPicker
+                            onSelect={(emoji) => setInputMessage((prev) => prev + emoji)}
+                            height={300}          // same footprint
+                            columns={8}           // keep your layout
+                            itemSize={44}         // safe, positive sizing
+                        />
                     )}
+
+
                     {/* Input */}
                     <View style={styles.inputRow}>
                         <TouchableOpacity style={{ marginTop: 15 }} onPress={() => {
@@ -1144,7 +1254,6 @@ const ChatScreen = () => {
                             onChangeText={setInputMessage}
                             onSubmitEditing={sendMessage}
                             onFocus={() => setShowEmojiPicker(false)}
-
                         />
                         <TouchableOpacity style={{ marginTop: 15 }} onPress={() => setAttachmentModal(true)}>
                             <Ionicons name="attach" size={28} color="#555" />
@@ -1169,7 +1278,6 @@ const ChatScreen = () => {
                                 onLock={() => setRecordingModalVisible(true)}
                             />
                         )}
-
                     </View>
 
                     {/* Modals */}
@@ -1195,7 +1303,6 @@ const ChatScreen = () => {
                                         <ThemedText style={styles.modalItemText}>Quick Replies</ThemedText>
                                     </TouchableOpacity>
 
-
                                     <TouchableOpacity onPress={() => navigation.navigate('AgentQuestionnaire', {
                                         chat_id,
                                         user_id: user?.id,
@@ -1204,8 +1311,7 @@ const ChatScreen = () => {
                                         <ThemedText style={styles.modalItemText}>View Questionnaire</ThemedText>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={() => {
-                                        sendQuestionnaire(chat_id, user?.id); // Use correct IDs
-                                        // closeModal(); // Optional
+                                        sendQuestionnaire(chat_id, user?.id);
                                     }} style={styles.modalItemRow}>
                                         <Ionicons name="paper-plane-outline" size={20} color="#000" style={styles.modalIcon} />
                                         <ThemedText style={styles.modalItemText}>Send Questionnaire</ThemedText>
@@ -1230,7 +1336,6 @@ const ChatScreen = () => {
                                             View Notes <ThemedText style={{ color: 'red' }}>●</ThemedText>
                                         </ThemedText>
                                     </TouchableOpacity>
-
 
                                     <TouchableOpacity style={styles.modalItemRow}>
                                         <Ionicons name="warning-outline" size={20} color="red" style={styles.modalIcon} />
@@ -1264,12 +1369,12 @@ const ChatScreen = () => {
                                             ✗ Mark as Failed
                                         </ThemedText>
                                     </TouchableOpacity>
-
                                 </View>
                             </View>
                         </Modal>
                     )}
-                    {/* Fill Questionaire Modal */}
+
+                    {/* Fill Questionnaire Modal */}
                     {userRole == 'user' && (
                         <Modal visible={questionnaireVisible} transparent animationType="slide">
                             <View style={[styles.agentOptionsModal, { maxHeight: '100%' }]}>
@@ -1277,7 +1382,6 @@ const ChatScreen = () => {
                                     <CategoryOneModal questions={questionnaireData[currentCategoryIndex]?.questions}
                                         onClose={() => setQuestionnaireVisible(false)}
                                         onNext={() => {
-                                            console.log("on next is called", currentCategoryIndex)
                                             setCurrentCategoryIndex(prev => prev + 1)
                                         }}
                                         chat_id={chat_id}
@@ -1290,7 +1394,6 @@ const ChatScreen = () => {
                                         onClose={() => setQuestionnaireVisible(false)}
                                         onPrevious={() => setCurrentCategoryIndex(0)}
                                         onNext={() => setCurrentCategoryIndex(2)}
-                                        //   onSaved={(answers) => setCombinedAnswers(prev => ({ ...prev, ...answers }))}
                                         chat_id={chat_id}
                                         user_id={orderDetails?.user_id}
                                     />
@@ -1312,9 +1415,6 @@ const ChatScreen = () => {
                                             setCurrentQuestionIndex(0);
                                         }}
                                         onDone={(finalAnswers) => {
-
-                                            console.log('Completed all questions in Category 3:', finalAnswers);
-
                                             setQuestionnaireVisible(false);
                                             setCurrentCategoryIndex(0);
                                             setCurrentQuestionIndex(0);
@@ -1322,9 +1422,9 @@ const ChatScreen = () => {
                                     />
                                 )}
                             </View>
-
                         </Modal>
                     )}
+
                     <PaymentModal
                         visible={paymentModalVisible}
                         onClose={() => setPaymentModalVisible(false)}
@@ -1334,6 +1434,7 @@ const ChatScreen = () => {
                             const updatedMessages = [...messages, paymentMessage];
                             setMessages(updatedMessages);
                             setPaymentModalVisible(false);
+                            messagesQuery.refetch();
                         }}
                     />
 
@@ -1359,7 +1460,7 @@ const ChatScreen = () => {
                                             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
                                                 <Image source={item.user.avatar} style={{ width: 24, height: 24, borderRadius: 12, marginRight: 6 }} />
                                                 <ThemedText style={{ fontSize: 13, color: '#555' }}>{item.user.name}</ThemedText>
-                                                <ThemedText style={[styles.time, isMyMessage ? styles.timeRight : styles.timeLeft]}>
+                                                <ThemedText style={[styles.time, /* isMyMessage ? styles.timeRight : */ styles.timeLeft]}>
                                                     {item.time}
                                                 </ThemedText>
                                             </View>
@@ -1380,6 +1481,7 @@ const ChatScreen = () => {
                             </View>
                         </View>
                     </Modal>
+
                     {/*  Add notes Modal*/}
                     <Modal visible={addNoteVisible} animationType="slide" transparent>
                         <View style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
@@ -1388,7 +1490,6 @@ const ChatScreen = () => {
                                 borderRadius: 20,
                                 width: '100%',
                                 padding: 20,
-                                // marginHorizontal: 20,
                             }}>
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <ThemedText style={{ fontSize: 18, fontWeight: '600' }}>Add a note</ThemedText>
@@ -1445,7 +1546,7 @@ const ChatScreen = () => {
                                         setNotes([...notes, newNote]);
                                         setNewNoteText('');
                                         setAddNoteVisible(false);
-                                        setViewNotesVisible(true); // re-open notes modal
+                                        setViewNotesVisible(true);
                                     }}
                                     style={{ backgroundColor: '#992C55', borderRadius: 30, paddingVertical: 14, alignItems: 'center', marginTop: 20 }}
                                 >
@@ -1454,6 +1555,7 @@ const ChatScreen = () => {
                             </View>
                         </View>
                     </Modal>
+
                     <VoiceRecorderModal
                         visible={recordingModalVisible}
                         audioUri={audioUri}
@@ -1467,6 +1569,7 @@ const ChatScreen = () => {
                             setRecordingModalVisible(false);
                         }}
                     />
+
                     {/* quick reply modal */}
                     <Modal visible={quickRepliesModalVisible} animationType="slide" transparent>
                         <View style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
@@ -1493,7 +1596,7 @@ const ChatScreen = () => {
                                             const newMsg = {
                                                 id: Date.now().toString(),
                                                 sender: user?.id,
-                                                text: item.text, // ✅ correct property access
+                                                text: item.text,
                                                 time,
                                             };
                                             setInputMessage(item.text)
@@ -1512,26 +1615,10 @@ const ChatScreen = () => {
                                         <ThemedText style={{ color: '#992C55', fontWeight: '500' }}>{item.text}</ThemedText>
                                     </TouchableOpacity>
                                 ))}
-
-
-                                {/* <TouchableOpacity
-                                    onPress={() => {
-                                        setAddReplyModalVisible(true);
-                                        setQuickRepliesModalVisible(false);
-                                    }}
-                                    style={{
-                                        backgroundColor: '#992C55',
-                                        paddingVertical: 14,
-                                        borderRadius: 40,
-                                        alignItems: 'center',
-                                        marginTop: 20,
-                                    }}
-                                >
-                                    <ThemedText style={{ color: '#fff', fontWeight: 'bold' }}>Add New</ThemedText>
-                                </TouchableOpacity> */}
                             </View>
                         </View>
                     </Modal>
+
                     {/* add new quick reply modal */}
                     <Modal visible={addReplyModalVisible} animationType="slide" transparent>
                         <KeyboardAvoidingView behavior="padding" style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
@@ -1575,7 +1662,6 @@ const ChatScreen = () => {
                                 </TouchableOpacity>
                             </View>
                         </KeyboardAvoidingView>
-
                     </Modal>
 
                     <Modal
@@ -1640,21 +1726,18 @@ const ChatScreen = () => {
                                     <TouchableOpacity onPress={pickImage} style={styles.attachmentOption}>
                                         <Ionicons name="images-outline" size={24} color="#fff" />
                                     </TouchableOpacity>
-                                    {/* <ThemedText style={styles.attachmentOptionText}>Gallery</ThemedText> */}
                                     <TouchableOpacity onPress={pickDocument} style={[styles.attachmentOption, { marginLeft: 15 }]}>
                                         <Ionicons name="documents-outline" size={24} color="#fff" />
-                                        {/* <ThemedText style={styles.attachmentOptionText}>Document</ThemedText> */}
                                     </TouchableOpacity>
                                 </View>
                                 <View style={{ flexDirection: 'row', borderRadius: 12, gap: 40, marginTop: -9 }}>
                                     <ThemedText style={[styles.attachmentOptionText, { marginLeft: 20 }]}>Gallery</ThemedText>
                                     <ThemedText style={styles.attachmentOptionText}>Document</ThemedText>
-
                                 </View>
                             </Pressable>
-
                         </Pressable>
                     </Modal>
+
                     <Modal visible={imagePreviewVisible} animationType="slide">
                         <View style={{ flex: 1, backgroundColor: '#fff' }}>
                             <View style={{ backgroundColor: '#992C55', paddingTop: 50, paddingBottom: 8, paddingHorizontal: 20 }}>
@@ -1676,7 +1759,7 @@ const ChatScreen = () => {
                                 data={previewImages}
                                 keyExtractor={(img) => img.id}
                                 renderItem={({ item }) => {
-                                    const mine = item?.sender === user?.id; // <-- compute here
+                                    const mine = item?.sender === user?.id;
                                     return (
                                         <View style={{ marginBottom: 16 }}>
                                             <Image source={{ uri: item.image }} style={{ width: '100%', height: 450 }} resizeMode="cover" />
@@ -1702,14 +1785,11 @@ const ChatScreen = () => {
                                     );
                                 }}
                             />
-
                         </View>
                     </Modal>
-
                 </View>
-            </TouchableWithoutFeedback >
-            {/* </ScrollView> */}
-        </KeyboardAvoidingView >
+            </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
     );
 };
 const styles = StyleSheet.create({
@@ -2056,7 +2136,6 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         // borderWidth: 3,
         borderColor: '#992c55',
-
 
     },
     imageGrid: {

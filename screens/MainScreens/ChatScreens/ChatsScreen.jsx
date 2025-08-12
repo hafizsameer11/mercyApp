@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+// ChatScreen.js (pure JS, TanStack Query)
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   ScrollView,
   TextInput,
@@ -10,28 +10,27 @@ import {
   Animated,
   Dimensions,
   Image,
+  AppState,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import ArrowBox from '../../../components/TagIcon';
-import TagIcon from '../../../components/TagIcon';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import ThemedText from '../../../components/ThemedText'; // adjust path accordingly
-import { useEffect } from 'react';
+import ThemedText from '../../../components/ThemedText';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import API from '../../../config/api.config';
-
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 const { height } = Dimensions.get('window');
 
 const categories = ['All', 'Photo Editing', 'Photo Manipulation', 'Photo Retouching', 'Others'];
+const POLL_MS = 10000;   // 10s; tweak if needed
+const STALE_MS = 60000;  // 60s
+
 const ChatScreen = () => {
   const [serviceModalVisible, setServiceModalVisible] = useState(false);
-
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedLabel, setSelectedLabel] = useState('All');
   const [showLabelOptions, setShowLabelOptions] = useState(false);
-
   const [showStatusOptions, setShowStatusOptions] = useState(false);
   const [showDateOptions, setShowDateOptions] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -41,12 +40,13 @@ const ChatScreen = () => {
   const [labelSlideAnim] = useState(new Animated.Value(height));
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('All');
   const [dateSort, setDateSort] = useState('Newest First');
   const [selectedChat, setSelectedChat] = useState(null);
   const [userDetail, setUserDetail] = useState({});
-  const navigation = useNavigation();
   const [userRole, setUserRole] = useState('');
+  const navigation = useNavigation();
+  const queryClient = useQueryClient();
+
   const labelList = [
     { label: 'New Customer', color: '#0000FF', icon: require('../../../assets/Vector (8).png') },
     { label: 'Paid Customer', color: '#00AA00', icon: require('../../../assets/Vector (11).png') },
@@ -54,179 +54,194 @@ const ChatScreen = () => {
     { label: 'Active Chats', color: '#000000', icon: require('../../../assets/Vector (10).png') },
   ];
 
+  // ---------- normalize from API ----------
+  const normalizeChat = (chat) => {
+    const otherUser = chat.participant_b;
+    const lastMsg = chat.messages?.slice(-1)[0];
 
-  const [chats, setChats] = useState([]);
-
-  useEffect(() => {
-    let interval;
-
-    const fetchChats = async () => {
-      try {
-        const token = await AsyncStorage.getItem('token');
-        const response = await axios.get(API.GET_ALL_CHATS, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (response.data.status === 'success') {
-
-          const chatData = response.data.data.map(chat => {
-            const otherUser = chat.participant_b;
-            // console.log("chat data", chat);
-            return {
-              id: chat.id.toString(),
-              name: otherUser.name,
-              lastMessage: (() => {
-                const lastMsg = chat.messages?.slice(-1)[0];
-                if (!lastMsg) return 'No messages yet';
-
-                if (lastMsg.message) return lastMsg.message;
-
-                switch (lastMsg.type) {
-                  case 'image':
-                    return 'Sent an image';
-                  case 'video':
-                    return 'Sent a video';
-                  case 'voice':
-                    return 'Sent a voice note';
-                  case 'file':
-                    return 'Sent a file';
-                  case 'payment':
-                    return 'Sent a payment';
-                  case 'questionnaire':
-                  case 'form':
-                    return 'Sent a form';
-                  default:
-                    return `Sent a ${lastMsg.type}`;
-                }
-              })(),
-              time: chat.updated_at,
-              unreadCount: chat.unreadCount ?? 0,
-              category: chat.category || 'Others',
-              label: null,
-              type: chat?.type,
-              image: otherUser.profile_picture
-                ? { uri: otherUser.profile_picture }
-                : require('../../../assets/Ellipse 18.png'),
-              agentDetails: otherUser,
-              status:chat?.status
-            };
-          });
-
-
-          setChats(chatData);
-        }
-      } catch (error) {
-        console.error('Failed to load chats:', error.response?.data || error.message);
+    let lastMessage = 'No messages yet';
+    if (lastMsg) {
+      if (lastMsg.message) lastMessage = lastMsg.message;
+      else {
+        const map = {
+          image: 'Sent an image',
+          video: 'Sent a video',
+          voice: 'Sent a voice note',
+          file: 'Sent a file',
+          payment: 'Sent a payment',
+          questionnaire: 'Sent a form',
+          form: 'Sent a form',
+        };
+        lastMessage = map[lastMsg.type] || `Sent a ${lastMsg.type}`;
       }
+    }
+
+    return {
+      id: String(chat.id),
+      name: otherUser?.name || 'Unknown',
+      lastMessage,
+      time: chat.updated_at,
+      unreadCount: chat.unreadCount ?? 0,
+      category: chat.category || 'Others',
+      label: chat.label ?? null,          // keep server label if any
+      type: chat?.type,
+      image: otherUser?.profile_picture
+        ? { uri: otherUser.profile_picture }
+        : require('../../../assets/Ellipse 18.png'),
+      agentDetails: otherUser,
+      status: chat?.status,
+      service: chat?.service,
+      showBadge: chat.showBadge ?? false, // UI flag (kept if server mirrors it later)
     };
+  };
 
-    fetchChats();
-    interval = setInterval(fetchChats, 1000); // every second
-
-    return () => clearInterval(interval); // cleanup on unmount
+  // ---------- load user (role/name) ----------
+  useEffect(() => {
+    (async () => {
+      const userdata = await AsyncStorage.getItem('user');
+      if (userdata) {
+        const user = JSON.parse(userdata);
+        setUserDetail(user);
+        setUserRole(user?.role || '');
+      }
+    })();
   }, []);
 
+  // ---------- query: chats ----------
+  const {
+    data: chats = [],
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: ['chats'],
+    // TanStack passes an AbortSignal we can forward to axios to avoid "CanceledError"
+    queryFn: async ({ signal }) => {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) return [];
+
+      const res = await axios.get(API.GET_ALL_CHATS, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      });
+
+      const rows = Array.isArray(res?.data?.data) ? res.data.data : [];
+      return rows.map(normalizeChat);
+    },
+    staleTime: STALE_MS,                 // data treated fresh for 60s
+    refetchInterval: POLL_MS,            // keep list fresh in background
+    refetchIntervalInBackground: true,
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: false,         // RN: we'll control on screen focus instead
+    placeholderData: (prev) => prev ?? [],
+    gcTime: 5 * 60 * 1000,               // keep cache 5 minutes
+  });
+
+  // Refetch when screen gains focus (instant, even if not stale)
+  useFocusEffect(
+    React.useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
+
+  // Refetch when app comes back to foreground
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refetch();
+    });
+    return () => sub.remove();
+  }, [refetch]);
+
+  // ---------- label / modal actions (update cached list immediately) ----------
   const selectChatFromLabelModal = (chat) => {
-    const updatedChats = chats.map(c =>
-      c.id === chat.id ? { ...c, showBadge: true } : c
+    queryClient.setQueryData(['chats'], (old = []) =>
+      old.map((c) => (c.id === chat.id ? { ...c, showBadge: true } : c))
     );
-    setChats(updatedChats);
     closeLabelView();
   };
+
   const openModal = (chat) => {
     setSelectedChat(chat);
     setModalVisible(true);
-    Animated.timing(slideAnim, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
+    Animated.timing(slideAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
   };
-  useEffect(() => {
-    const getUserDetails = async () => {
-      const userdata = await AsyncStorage.getItem('user');
-      const user = JSON.parse(userdata);
-      setUserDetail(user);
-      setUserRole(user.role);
-    }
-    getUserDetails();
-  }, []);
+
   const closeModal = () => {
-    Animated.timing(slideAnim, {
-      toValue: height,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => setModalVisible(false));
+    Animated.timing(slideAnim, { toValue: height, duration: 200, useNativeDriver: true }).start(() =>
+      setModalVisible(false)
+    );
   };
 
   const openLabelView = (labelName) => {
     setSelectedLabelView(labelName);
-    Animated.timing(labelSlideAnim, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
+    Animated.timing(labelSlideAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
   };
 
   const closeLabelView = () => {
-    Animated.timing(labelSlideAnim, {
-      toValue: height,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => setSelectedLabelView(null));
+    Animated.timing(labelSlideAnim, { toValue: height, duration: 200, useNativeDriver: true }).start(() =>
+      setSelectedLabelView(null)
+    );
   };
 
   const assignLabel = (label) => {
-    const updatedChats = chats.map(chat =>
-      // chat.id === selectedChat.id ? { ...chat, label } : chat
-      chat.id === selectedChat.id
-        ? { ...chat, label: { ...label, icon: label.icon } }
-        : chat
+    if (!selectedChat) return;
+    queryClient.setQueryData(['chats'], (old = []) =>
+      old.map((chat) =>
+        chat.id === selectedChat.id ? { ...chat, label: { ...label, icon: label.icon } } : chat
+      )
     );
-    setChats(updatedChats);
     setLabelModalVisible(false);
     closeModal();
   };
 
   const deleteChat = () => {
-    const updatedChats = chats.filter(chat => chat.id !== selectedChat.id);
-    setChats(updatedChats);
+    if (!selectedChat) return;
+    // Optimistic remove from cache
+    queryClient.setQueryData(['chats'], (old = []) => old.filter((c) => c.id !== selectedChat.id));
     closeModal();
+    // If you have a delete endpoint, call it and on error -> invalidate & refetch
+    // queryClient.invalidateQueries({ queryKey: ['chats'] });
   };
 
   const viewLabelChats = (labelName) => {
     setLabelModalVisible(false);
     setTimeout(() => openLabelView(labelName), 300);
   };
+
+  // ---------- filters + sort + search (derived) ----------
   const filteredChats = useMemo(() => {
     let filtered = [...chats];
 
     if (selectedCategory !== 'All') {
-      filtered = filtered.filter(chat =>
-        chat.agentDetails?.category === selectedCategory || chat.category === selectedCategory
+      filtered = filtered.filter(
+        chat => chat.agentDetails?.category === selectedCategory || chat.category === selectedCategory
       );
     }
 
     if (selectedStatus !== 'All') {
-      filtered = filtered.filter(chat => chat.status === selectedStatus);
+      filtered = filtered.filter(chat => String(chat.status).toLowerCase() === selectedStatus.toLowerCase());
     }
 
     if (selectedLabel !== 'All') {
       filtered = filtered.filter(chat => chat.label?.label === selectedLabel);
     }
 
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      filtered = filtered.filter(
+        c => (c.name || '').toLowerCase().includes(q) || (c.lastMessage || '').toLowerCase().includes(q)
+      );
+    }
+
     filtered.sort((a, b) => {
-      const dateA = new Date(a.time);
-      const dateB = new Date(b.time);
+      const dateA = new Date(a.time).getTime();
+      const dateB = new Date(b.time).getTime();
       return dateSort === 'Newest First' ? dateB - dateA : dateA - dateB;
     });
 
     return filtered;
-  }, [chats, selectedCategory, selectedStatus, selectedLabel, dateSort]);
+  }, [chats, selectedCategory, selectedStatus, selectedLabel, dateSort, search]);
 
-  const assignAgentAndNavigate = async (serviceName, navigation, closeModal) => {
+  const assignAgentAndNavigate = async (serviceName, navigation, closeFn) => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -246,20 +261,18 @@ const ChatScreen = () => {
         }
       );
 
-      const { chat_id, agent } = response.data.data;
-
+      const { chat_id, agent } = response.data.data || {};
       if (agent) {
-        closeModal();
+        closeFn();
         navigation.navigate('Chat', {
           service: serviceName,
           userRole: 'agent',
           user: 'LoggedInUser',
-          agent: {
-            name: agent.name,
-            image: { uri: agent.image_url },
-          },
-          chat_id: chat_id,
+          agent: { name: agent.name, image: { uri: agent.image_url } },
+          chat_id,
         });
+        // ensure list reflects possible new/updated chat
+        queryClient.invalidateQueries({ queryKey: ['chats'] });
       } else {
         alert('No agent assigned.');
       }
@@ -269,15 +282,13 @@ const ChatScreen = () => {
     }
   };
 
-
+  // ---------- render ----------
   return (
     <View style={styles.container}>
       <View style={styles.topSection}>
         <View style={styles.headerRow}>
           <ThemedText fontFamily='monaque' weight='bold' style={styles.headerTitle}>Chat</ThemedText>
-          <TouchableOpacity>
-            {/* <Ionicons name="ellipsis-vertical" size={22} color="#fff" /> */}
-          </TouchableOpacity>
+          <TouchableOpacity>{/* menu */}</TouchableOpacity>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryContainer}>
@@ -287,7 +298,9 @@ const ChatScreen = () => {
               onPress={() => setSelectedCategory(cat)}
               style={[styles.categoryButton, selectedCategory === cat && styles.activeCategoryButton]}
             >
-              <ThemedText style={[styles.categoryText, selectedCategory === cat && styles.activeCategoryText]}>{cat}</ThemedText>
+              <ThemedText style={[styles.categoryText, selectedCategory === cat && styles.activeCategoryText]}>
+                {cat}
+              </ThemedText>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -304,8 +317,9 @@ const ChatScreen = () => {
             onChangeText={setSearch}
           />
         </View>
-        <View style={{ flexDirection: 'row', marginBottom: 15, gap: 30, marginTop: -10, }}>
-          {/* Status Dropdown */}
+
+        <View style={{ flexDirection: 'row', marginBottom: 15, gap: 30, marginTop: -10 }}>
+          {/* Status */}
           <View>
             <TouchableOpacity onPress={() => setShowStatusOptions(!showStatusOptions)} style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 10 }}>
               <Ionicons name="filter" size={17} color="#555" style={{ marginRight: 4 }} />
@@ -323,7 +337,7 @@ const ChatScreen = () => {
             )}
           </View>
 
-          {/* Date Dropdown */}
+          {/* Date */}
           <View>
             <TouchableOpacity onPress={() => setShowDateOptions(!showDateOptions)} style={{ flexDirection: 'row', alignItems: 'center' }}>
               <ThemedText style={{ fontSize: 14 }}>Date</ThemedText>
@@ -340,7 +354,7 @@ const ChatScreen = () => {
             )}
           </View>
 
-          {/* Label Dropdown */}
+          {/* Labels (agents only) */}
           {userRole === 'agent' && (
             <View>
               <TouchableOpacity onPress={() => setShowLabelOptions(!showLabelOptions)} style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -352,7 +366,6 @@ const ChatScreen = () => {
                   <TouchableOpacity onPress={() => { setSelectedLabel('All'); setShowLabelOptions(false); }}>
                     <ThemedText style={styles.dropdownText}>All</ThemedText>
                   </TouchableOpacity>
-
                   {labelList.map((labelObj) => (
                     <TouchableOpacity
                       key={labelObj.label}
@@ -363,14 +376,11 @@ const ChatScreen = () => {
                       <ThemedText style={styles.dropdownText}>{labelObj.label}</ThemedText>
                     </TouchableOpacity>
                   ))}
-
                 </View>
               )}
             </View>
           )}
-
         </View>
-
 
         <ScrollView showsVerticalScrollIndicator={false}>
           {filteredChats.map((chat) => (
@@ -383,34 +393,30 @@ const ChatScreen = () => {
                   chat_id: chat.id,
                   userRole: 'agent',
                   user: chat.name,
-                  agent: {
-                    name: 'Agent', // or extract from current user or API
-                    image: chat.image, // fallback if needed
-                  },
-                  service: chat.service || 'General', // or chat.type if you return it
+                  agent: { name: 'Agent', image: chat.image },
+                  service: chat.service || 'General',
                 });
               }}
-
             >
               <Image source={chat.image} style={styles.chatAvatar} />
               <View style={styles.chatInfo}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <ThemedText style={styles.chatName}>{chat.name}</ThemedText>
-                  {
-                    userDetail && userDetail?.role == 'user' ? <ThemedText style={styles.chatName}></ThemedText>
-                      : <ThemedText style={styles.chatName2}>({chat.type == 'user-agent' ? 'Customer' : 'Team'})</ThemedText>
-
-                  }
-                  {/* <ThemedText style={styles.chatName}>{chat.name}</ThemedText> */}
+                  {userDetail && userDetail?.role === 'user' ? (
+                    <ThemedText style={styles.chatName} />
+                  ) : (
+                    <ThemedText style={styles.chatName2}>({chat.type === 'user-agent' ? 'Customer' : 'Team'})</ThemedText>
+                  )}
                   {chat.label && chat.showBadge && chat.label.icon && (
                     <Image source={chat.label.icon} style={styles.chatLabelImager} />
                   )}
                 </View>
-
                 <ThemedText style={styles.chatMessage}>{chat.lastMessage}</ThemedText>
               </View>
               <View style={styles.chatMeta}>
-                <ThemedText style={styles.chatTime}>{new Date(chat.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</ThemedText>
+                <ThemedText style={styles.chatTime}>
+                  {new Date(chat.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </ThemedText>
                 {chat.unreadCount > 0 && (
                   <View style={styles.unreadBadge}>
                     <ThemedText style={styles.unreadText}>{chat.unreadCount}</ThemedText>
@@ -461,9 +467,7 @@ const ChatScreen = () => {
               const count = chats.filter(chat => chat.label?.label === item.label).length;
               return (
                 <TouchableOpacity key={item.label} style={styles.labelRow} onPress={() => viewLabelChats(item.label)}>
-                  {/* <View style={[styles.colorDot, { backgroundColor: item.color }]} /> */}
                   <Image source={item.icon} style={styles.labelIconImage} />
-
                   <View>
                     <ThemedText style={styles.labelText}>{item.label}</ThemedText>
                     <ThemedText style={styles.labelCount}>{count} item{count !== 1 ? 's' : ''}</ThemedText>
@@ -490,6 +494,7 @@ const ChatScreen = () => {
                 <Ionicons name="ellipsis-vertical" size={20} color="#000" />
               </TouchableOpacity>
             </View>
+
             {chats.filter(chat => chat.label?.label === selectedLabelView).map(chat => (
               <TouchableOpacity
                 key={chat.id}
@@ -506,13 +511,22 @@ const ChatScreen = () => {
                 </ThemedText>
               </TouchableOpacity>
             ))}
-
           </Animated.View>
         </View>
       </Modal>
 
-      {/* user new chat modal
-       */}
+      {/* New Chat (FAB) */}
+      <TouchableOpacity
+        style={styles.fabButton}
+        onPress={() => {
+          if (userRole === 'user') setServiceModalVisible(true);
+          else navigation.navigate('NewChat');
+        }}
+      >
+        <Ionicons name="add" size={28} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Service Modal */}
       <Modal
         visible={serviceModalVisible}
         transparent
@@ -530,33 +544,15 @@ const ChatScreen = () => {
 
             <View style={styles.serviceGrid}>
               {[
-                {
-                  label: 'Photo Editing',
-                  color: '#E6273C',
-                  icon: require('../../../assets/PenNib.png'),
-                },
-                {
-                  label: 'Photo Manipulation',
-                  color: '#7B2CBF',
-                  icon: require('../../../assets/Vector (6).png'),
-                },
-                {
-                  label: 'Body Retouching',
-                  color: '#D63384',
-                  icon: require('../../../assets/DropHalf.png'),
-                },
-                {
-                  label: 'Others',
-                  color: '#F59F00',
-                  icon: require('../../../assets/Eyedropper.png'),
-                },
+                { label: 'Photo Editing', color: '#E6273C', icon: require('../../../assets/PenNib.png') },
+                { label: 'Photo Manipulation', color: '#7B2CBF', icon: require('../../../assets/Vector (6).png') },
+                { label: 'Body Retouching', color: '#D63384', icon: require('../../../assets/DropHalf.png') },
+                { label: 'Others', color: '#F59F00', icon: require('../../../assets/Eyedropper.png') },
               ].map((item) => (
                 <TouchableOpacity
                   key={item.label}
                   style={styles.serviceBox}
-                  onPress={() => {
-                    assignAgentAndNavigate(item.label, navigation, () => setServiceModalVisible(false));
-                  }}
+                  onPress={() => assignAgentAndNavigate(item.label, navigation, () => setServiceModalVisible(false))}
                 >
                   <View style={[styles.iconCircle, { backgroundColor: item.color }]}>
                     <Image source={item.icon} style={styles.iconImage} />
@@ -569,20 +565,8 @@ const ChatScreen = () => {
         </View>
       </Modal>
 
-
-      <TouchableOpacity
-        style={styles.fabButton}
-        onPress={() => {
-          if (userRole === 'user') {
-            setServiceModalVisible(true); 
-          } else {
-            navigation.navigate('NewChat'); 
-          }
-        }}
-      >
-        <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
-
+      {/* Optionally show a tiny fetching indicator */}
+      {/* {isFetching ? <View style={{position:'absolute', top: 200, right:16}}><ThemedText>Refreshing…</ThemedText></View> : null} */}
     </View>
   );
 };
@@ -604,147 +588,46 @@ const styles = StyleSheet.create({
   chatAvatar: { width: 45, height: 45, borderRadius: 25, marginRight: 10 },
   chatInfo: { flex: 1 },
   chatName: { fontSize: 15, fontWeight: 'bold', color: '#000' },
-  chatName2: { fontSize: 11, fontWeight: 'light', color: '#000' },
+  chatName2: { fontSize: 11, color: '#000' },
   chatMessage: { fontSize: 13, color: '#555' },
   chatMeta: { alignItems: 'flex-end' },
   chatTime: { fontSize: 11, color: '#999' },
   unreadBadge: { backgroundColor: '#992C55', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 2, marginTop: 5 },
   unreadText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
-  chatLabelDot: { width: 14, height: 14, borderRadius: 7, alignSelf: 'flex-end', marginBottom: 4 },
+  chatLabelImager: { width: 20, height: 20, marginBottom: 6, resizeMode: 'contain' },
+
   optionsModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   optionsModalBox: { backgroundColor: '#F5F5F7', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 },
   optionsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   optionsTitle: { fontSize: 18, fontWeight: '600', color: '#000' },
   optionsItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 15, backgroundColor: "#fff", marginTop: 10, borderRadius: 10 },
   optionsItemText: { fontSize: 16, color: '#000' },
+
   labelModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   labelModalBox: { backgroundColor: '#F5F5F7', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 },
   labelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   labelTitle: { fontSize: 18, fontWeight: '600', color: '#000' },
   newLabelButton: { color: '#fff', fontWeight: '600', fontSize: 12, backgroundColor: '#992C55', paddingHorizontal: 10, paddingVertical: 9, borderRadius: 8, marginLeft: 200 },
   labelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, backgroundColor: "#fff", padding: 10, borderRadius: 10 },
-  colorDot: { width: 16, height: 16, borderRadius: 8, marginRight: 12 },
   labelText: { fontSize: 15, color: '#000' },
   labelCount: { fontSize: 11, color: '#888' },
-  dropdownBox: {
-    backgroundColor: '#fff',
-    elevation: 2,
-    borderRadius: 8,
-    marginTop: 20,
-    padding: 10,
-    width: 100,
-    position: 'absolute',
-    zIndex: 1,
-  },
-  dropdownText: {
-    fontSize: 13,
-    paddingVertical: 8,
-    color: '#000',
-    paddingVertical: 5,
-  },
-  fabButton: {
-    position: 'absolute',
-    bottom: 30,
-    right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#992C55',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 6,
-  },
-  labelIconImage: {
-    width: 20,
-    height: 20,
-    marginRight: 12,
-    resizeMode: 'contain',
-  },
-  dropdownItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-  },
 
-  labelIconImage: {
-    width: 16,
-    height: 16,
-    resizeMode: 'contain',
-    marginRight: 8,
-  },
-  chatLabelImage: {
-    // width: 20,
-    // height: 20,
-    // marginBottom: 6,
+  dropdownBox: { backgroundColor: '#fff', elevation: 2, borderRadius: 8, marginTop: 20, padding: 10, width: 100, position: 'absolute', zIndex: 1 },
+  dropdownText: { fontSize: 13, color: '#000', paddingVertical: 5 },
+  dropdownItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
+  labelIconImage: { width: 16, height: 16, resizeMode: 'contain', marginRight: 8 },
 
-  },
+  fabButton: { position: 'absolute', bottom: 30, right: 20, width: 60, height: 60, borderRadius: 30, backgroundColor: '#992C55', justifyContent: 'center', alignItems: 'center', elevation: 6 },
 
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: '#F5F5F7',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 40,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  serviceGrid: {
-    marginLeft:5,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    rowGap:12,
-    columnGap:12
-  },
-  serviceBox: {
-
-    width: 150,
-    aspectRatio: 1,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    height:190,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  iconCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  iconImage: {
-    width: 26,
-    height: 26,
-    resizeMode: 'contain',
-  },
-  serviceText: {
-    fontSize: 13,
-    marginTop:10,
-    fontWeight: '500',
-    color: '#000',
-  },
-
-
-
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: '#F5F5F7', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  modalTitle: { fontSize: 18, fontWeight: '600' },
+  serviceGrid: { marginLeft:5, flexDirection: 'row', flexWrap: 'wrap', rowGap:12, columnGap:12 },
+  serviceBox: { width: 150, aspectRatio: 1, backgroundColor: '#fff', borderRadius: 16, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.08, height:190, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 3 },
+  iconCircle: { width: 70, height: 70, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  iconImage: { width: 26, height: 26, resizeMode: 'contain' },
+  serviceText: { fontSize: 13, marginTop:10, fontWeight: '500', color: '#000' },
 });
 
 export default ChatScreen;
