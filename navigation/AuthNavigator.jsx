@@ -22,6 +22,7 @@ import AgentToAgentChatScreen from '../screens/MainScreens/ChatScreens/AgentToAg
 import FlutterwaveWebView from '../components/FlutterwaveWebView';
 import ForwardMessageScreen from '../screens/MainScreens/ChatScreens/ForwardMessageScreen';
 import LikedFeedScreen from '../screens/MainScreens/LikedFeedScreen';
+import ChatDetails from '../screens/MainScreens/ChatScreens/ChatDetails';
 
 
 
@@ -50,6 +51,7 @@ const AuthNavigator = () => {
       <Stack.Screen name="AgentToAgentChat" component={AgentToAgentChatScreen} />
       <Stack.Screen name="FlutterwaveWebView" component={FlutterwaveWebView} />
       <Stack.Screen name="LikedFeed" component={LikedFeedScreen} />
+      <Stack.Screen name="ChatDetails" component={ChatDetails} />
 
 
 

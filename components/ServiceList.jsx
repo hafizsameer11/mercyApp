@@ -300,6 +300,7 @@ const ServiceCategoryList = () => {
 
 
                                     const agentData = response.data.data.agent;
+                                    console.log(response.data.data)
 
                                     if (agentData) {
                                         closeModal();

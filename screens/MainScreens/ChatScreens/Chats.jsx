@@ -146,7 +146,10 @@ const ChatScreen = () => {
         },
     ]);
 
-    const { chat_id } = useRoute().params;
+    // const { chat_id } = useRoute().params;
+
+    const route = useRoute();
+    const { chat_id, scrollToBottom: navWantsBottom } = route.params || {};
     const [messageActionModalVisible, setMessageActionModalVisible] = useState(false);
     const [selectedMessage, setSelectedMessage] = useState(null);
 
@@ -174,6 +177,38 @@ const ChatScreen = () => {
     // ------------------------------
     // QUICK REPLIES (unchanged)
     // ------------------------------
+
+    const autoScrollOnMount = useRef(navWantsBottom ?? true);
+    const userNearBottomRef = useRef(true);
+
+    const scrollToBottom = (animated = true) => {
+        requestAnimationFrame(() => {
+            flatListRef.current?.scrollToEnd({ animated });
+        });
+    };
+
+    const handleScroll = (e) => {
+        const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+        const paddingToBottom = 24; // tolerance
+        userNearBottomRef.current =
+            contentOffset.y + layoutMeasurement.height >= contentSize.height - paddingToBottom;
+    };
+
+    // one-time jump after first load
+    useEffect(() => {
+        if (!isMessagesLoading && autoScrollOnMount.current) {
+            autoScrollOnMount.current = false;
+            scrollToBottom(false);
+        }
+    }, [isMessagesLoading]);
+
+    // keep pinned to bottom only if user is already near bottom
+    useEffect(() => {
+        if (!isMessagesLoading && userNearBottomRef.current && messages.length) {
+            scrollToBottom(true);
+        }
+    }, [messages.length, isMessagesLoading]);
+
     const fetchReplies = async () => {
         try {
             const token = await AsyncStorage.getItem('token');
@@ -835,6 +870,14 @@ const ChatScreen = () => {
         setMessageActionModalVisible(true);
     };
 
+    const openChatDetails = () => {
+        navigation.navigate('ChatDetails', {
+            chat_id,
+            myRole: userRole || user?.role || 'user', // 'user' or 'support'
+
+        });
+    };
+
     const renderMessage = ({ item }) => {
         const isMyMessage = item.sender === user?.id;
 
@@ -1174,17 +1217,26 @@ const ChatScreen = () => {
                         <TouchableOpacity onPress={() => navigation.goBack()}>
                             <Ionicons name="chevron-back" size={28} color="#fff" />
                         </TouchableOpacity>
-                        <Image source={agent.image} style={styles.agentPic} />
-                        <View>
-                            <ThemedText style={styles.agentName}>{agent.name}</ThemedText>
-                            <ThemedText style={styles.online}>Online</ThemedText>
-                        </View>
+
+                        <TouchableOpacity
+                            onPress={openChatDetails}
+                            activeOpacity={0.85}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}
+                        >
+                            <Image source={agent.image} style={styles.agentPic} />
+                            <View>
+                                <ThemedText style={styles.agentName}>{agent.name}</ThemedText>
+                                <ThemedText style={styles.online}>Online</ThemedText>
+                            </View>
+                        </TouchableOpacity>
+
                         {userRole === 'support' && (
                             <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginLeft: 'auto', marginRight: 10 }}>
                                 <Ionicons name="ellipsis-vertical" size={22} color="#fff" />
                             </TouchableOpacity>
                         )}
                     </View>
+
 
                     {isMessagesLoading ? (
                         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -1201,6 +1253,13 @@ const ChatScreen = () => {
                             scrollEnabled={true}
                             keyboardShouldPersistTaps="handled"
                             style={{ flex: 1 }}
+                            onContentSizeChange={() => {
+                                if (!isMessagesLoading && (userNearBottomRef.current || autoScrollOnMount.current)) {
+                                    scrollToBottom(false);
+                                }
+                            }}
+                            onScroll={handleScroll}
+                            scrollEventThrottle={16}
                             ListHeaderComponent={
                                 <>
                                     {/* Order Card */}

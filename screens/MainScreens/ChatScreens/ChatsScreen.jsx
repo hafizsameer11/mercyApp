@@ -27,6 +27,7 @@ const POLL_MS = 10000;   // 10s; tweak if needed
 const STALE_MS = 60000;  // 60s
 
 const ChatScreen = () => {
+  const [peerTab, setPeerTab] = useState('Customer');
   const [serviceModalVisible, setServiceModalVisible] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedLabel, setSelectedLabel] = useState('All');
@@ -208,44 +209,56 @@ const ChatScreen = () => {
   };
 
   // ---------- filters + sort + search (derived) ----------
-  const filteredChats = useMemo(() => {
-    let filtered = [...chats];
+ const filteredChats = useMemo(() => {
+  let filtered = [...chats];
 
-    if (selectedCategory !== 'All') {
-      filtered = filtered.filter(
-        chat => chat.agentDetails?.category === selectedCategory || chat.category === selectedCategory
-      );
-    }
+  // Category
+  if (selectedCategory !== 'All') {
+    filtered = filtered.filter(
+      chat => chat.agentDetails?.category === selectedCategory || chat.category === selectedCategory
+    );
+  }
 
-    if (selectedStatus !== 'All') {
-      filtered = filtered.filter(chat => String(chat.status).toLowerCase() === selectedStatus.toLowerCase());
-    }
+  // Status
+  if (selectedStatus !== 'All') {
+    filtered = filtered.filter(chat => String(chat.status).toLowerCase() === selectedStatus.toLowerCase());
+  }
 
-    if (selectedLabel !== 'All') {
-      filtered = filtered.filter(chat => chat.label?.label === selectedLabel);
-    }
+  // Label
+  if (selectedLabel !== 'All') {
+    filtered = filtered.filter(chat => chat.label?.label === selectedLabel);
+  }
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      filtered = filtered.filter(
-        c => (c.name || '').toLowerCase().includes(q) || (c.lastMessage || '').toLowerCase().includes(q)
-      );
-    }
+  // Agent-only: Customer vs Team tab
+  if (userRole === 'support') {
+    filtered =
+      peerTab === 'Customer'
+        ? filtered.filter(c => c.type === 'user-agent')
+        : filtered.filter(c => c.type !== 'user-agent');
+  }
 
-    filtered.sort((a, b) => {
-      const dateA = new Date(a.time).getTime();
-      const dateB = new Date(b.time).getTime();
-      return dateSort === 'Newest First' ? dateB - dateA : dateA - dateB;
-    });
+  // Search by NAME only
+  if (search.trim()) {
+    const q = search.toLowerCase();
+    filtered = filtered.filter(c => (c.name || '').toLowerCase().includes(q));
+  }
 
-    return filtered;
-  }, [chats, selectedCategory, selectedStatus, selectedLabel, dateSort, search]);
+  // Sort
+  filtered.sort((a, b) => {
+    const dateA = new Date(a.time).getTime();
+    const dateB = new Date(b.time).getTime();
+    return dateSort === 'Newest First' ? dateB - dateA : dateA - dateB;
+  });
+
+  return filtered;
+}, [chats, selectedCategory, selectedStatus, selectedLabel, dateSort, search, peerTab, userRole]);
+
 
   const assignAgentAndNavigate = async (serviceName, navigation, closeFn) => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        alert('You must be logged in.');
+        alert('You must be logged in.'); 
         return;
       }
 
@@ -317,6 +330,26 @@ const ChatScreen = () => {
             onChangeText={setSearch}
           />
         </View>
+        {userRole === 'support' && (
+          <View style={styles.tabSwitch}>
+            <TouchableOpacity
+              style={[styles.tabBtn, peerTab === 'Customer' && styles.tabBtnActive]}
+              onPress={() => setPeerTab('Customer')}
+            >
+              <ThemedText style={[styles.tabText, peerTab === 'Customer' && styles.tabTextActive]}>
+                Customer
+              </ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tabBtn, peerTab === 'Team' && styles.tabBtnActive]}
+              onPress={() => setPeerTab('Team')}
+
+            >
+              <ThemedText style={[styles.tabText, peerTab === 'Team' && styles.tabTextActive]}>
+                Team
+              </ThemedText>
+            </TouchableOpacity>
+          </View>)}
 
         <View style={{ flexDirection: 'row', marginBottom: 15, gap: 30, marginTop: -10 }}>
           {/* Status */}
@@ -537,7 +570,7 @@ const ChatScreen = () => {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <ThemedText style={styles.modalTitle}>Choose a service</ThemedText>
-              <TouchableOpacity style={{ backgroundColor:"#fff", borderRadius:20, padding:4, elevation:1 }} onPress={() => setServiceModalVisible(false)}>
+              <TouchableOpacity style={{ backgroundColor: "#fff", borderRadius: 20, padding: 4, elevation: 1 }} onPress={() => setServiceModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#000" />
               </TouchableOpacity>
             </View>
@@ -582,7 +615,7 @@ const styles = StyleSheet.create({
   categoryText: { fontSize: 13, color: '#fff', fontWeight: '500' },
   activeCategoryText: { color: '#000' },
   chatWrapper: { flex: 1, position: 'absolute', top: 190, left: 0, right: 0, bottom: 0, backgroundColor: '#F5F5F7', borderTopLeftRadius: 25, borderTopRightRadius: 25, paddingHorizontal: 16, paddingTop: 20 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 30, paddingHorizontal: 10, paddingVertical: 5, elevation: 2, marginBottom: 30 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 30, paddingHorizontal: 10, paddingVertical: 5, elevation: 2, marginBottom: 20 },
   searchInput: { flex: 1, marginLeft: 10, color: '#000', fontSize: 14 },
   chatCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
   chatAvatar: { width: 45, height: 45, borderRadius: 25, marginRight: 10 },
@@ -623,11 +656,35 @@ const styles = StyleSheet.create({
   modalCard: { backgroundColor: '#F5F5F7', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   modalTitle: { fontSize: 18, fontWeight: '600' },
-  serviceGrid: { marginLeft:5, flexDirection: 'row', flexWrap: 'wrap', rowGap:12, columnGap:12 },
-  serviceBox: { width: 150, aspectRatio: 1, backgroundColor: '#fff', borderRadius: 16, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.08, height:190, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 3 },
+  serviceGrid: { marginLeft: 5, flexDirection: 'row', flexWrap: 'wrap', rowGap: 12, columnGap: 12 },
+  serviceBox: { width: 150, aspectRatio: 1, backgroundColor: '#fff', borderRadius: 16, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.08, height: 190, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 3 },
   iconCircle: { width: 70, height: 70, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   iconImage: { width: 26, height: 26, resizeMode: 'contain' },
-  serviceText: { fontSize: 13, marginTop:10, fontWeight: '500', color: '#000' },
+  serviceText: { fontSize: 13, marginTop: 10, fontWeight: '500', color: '#000' },
+  tabSwitch: {
+    flexDirection: 'row',
+    backgroundColor: '#EEE',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
+  },
+  tabBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  tabBtnActive: {
+    backgroundColor: '#992C55',
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+  },
+  tabTextActive: {
+    color: '#fff',
+  },
 });
 
 export default ChatScreen;
