@@ -1,10 +1,22 @@
-import React, { useEffect, useState } from 'react';
-import { View, Image, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Image,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  Dimensions
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import API, { BASE_URL } from '../../../config/api.config';
 import ThemedText from '../../../components/ThemedText';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function ChatDetails({ route, navigation }) {
   // Params expected:
@@ -14,9 +26,22 @@ export default function ChatDetails({ route, navigation }) {
 
   const [loading, setLoading] = useState(true);
   const [counterparty, setCounterparty] = useState(null);
+  const [media, setMedia] = useState([]); // images from the chat
+
+  // Full-screen preview state (swipeable)
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const previewListRef = useRef(null);
 
   // e.g. https://editbymercy.hmstech.xyz
   const APP_BASE = BASE_URL.replace(/\/api\/?$/i, '');
+
+  // ---- helpers ----
+  const normalizeUrl = (url) => {
+    if (!url) return null;
+    if (/^https?:\/\//i.test(url)) return url; // already absolute
+    return `${APP_BASE}/${String(url).replace(/^\/+/, '')}`;
+  };
 
   // Resolve "service_type" required by the API
   const resolveServiceType = () => {
@@ -61,43 +86,51 @@ export default function ChatDetails({ route, navigation }) {
           'Content-Type': 'application/json',
         };
 
-        // API requires POST and "service_type"
-        const res = await axios.post(
+        // 1) Who to show (requires POST and "service_type")
+        const assignRes = await axios.post(
           API.ASSIGN_AGENT,
           { chat_id, service_type: serviceTypeValue },
           { headers, timeout: 15000 }
         );
 
-        const raw = res?.data ?? {};
-        const data = raw?.data ?? raw;
+        const assignRaw = assignRes?.data ?? {};
+        const assignData = assignRaw?.data ?? assignRaw;
 
-        // payload contains: agent, user, order, ...
-        const agent = data?.agent ?? null;
-        const user = data?.user ?? null;
+        const agent = assignData?.agent ?? null;
+        const user = assignData?.user ?? null;
 
-        // Pick based on target
         const showObj = (target === 'agent' ? agent : user) || {};
-
-        // Normalize profile picture to absolute URL
-        const pic = showObj?.profile_picture;
-        const normalizedPic =
-          pic && /^https?:\/\//i.test(pic)
-            ? pic
-            : pic
-            ? `${APP_BASE}/${String(pic).replace(/^\/+/, '')}`
-            : null;
-
         const mapped = {
           id: showObj?.id ?? null,
           name: showObj?.name || (target === 'agent' ? 'Agent' : 'Customer'),
           roleLabel: target === 'agent' ? 'Customer representative' : 'Customer',
-          profile_picture: normalizedPic,
+          profile_picture: normalizeUrl(showObj?.profile_picture),
         };
-
         if (!mounted) return;
         setCounterparty(mapped);
+
+        // 2) Pull chat messages and extract images
+        const msgsRes = await axios.get(API.GET_CHAT_MESSAGES(chat_id), {
+          headers,
+          timeout: 15000,
+        });
+
+        const statusOk = msgsRes?.data?.status === 'success';
+        const msgs = (statusOk ? msgsRes?.data?.data?.messages : msgsRes?.data?.data?.messages) || [];
+
+        // Filter images (both mine and received) and normalize URLs
+        const imageUrls = msgs
+          .filter((m) => (m?.type || '').toLowerCase() === 'image' && m?.file)
+          .map((m) => normalizeUrl(m.file))
+          .filter(Boolean);
+
+        // De-duplicate & reverse (latest first)
+        const unique = Array.from(new Set(imageUrls)).reverse();
+
+        if (!mounted) return;
+        setMedia(unique);
       } catch (e) {
-        // Silent fail into placeholders; you can add a toast if you like
+        // optional: console.log(e?.response?.data || e?.message);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -107,6 +140,32 @@ export default function ChatDetails({ route, navigation }) {
       mounted = false;
     };
   }, [chat_id, service_type, show, myRole, service]);
+
+  // Open preview at tapped index
+  const openPreviewAt = (index) => {
+    setPreviewIndex(index);
+    setPreviewVisible(true);
+    // Wait a tick so FlatList mounts, then scroll to index
+    requestAnimationFrame(() => {
+      if (previewListRef.current && index >= 0) {
+        previewListRef.current.scrollToIndex({ index, animated: false });
+      }
+    });
+  };
+
+  // Keep previewIndex in sync when user swipes
+  const handlePreviewScrollEnd = (e) => {
+    const x = e.nativeEvent.contentOffset.x;
+    const i = Math.round(x / SCREEN_WIDTH);
+    if (i !== previewIndex) setPreviewIndex(i);
+  };
+
+  // Handle potential "initialScrollIndex" measurement
+  const getItemLayout = (_, index) => ({
+    length: SCREEN_WIDTH,
+    offset: SCREEN_WIDTH * index,
+    index,
+  });
 
   if (loading) {
     return (
@@ -119,9 +178,6 @@ export default function ChatDetails({ route, navigation }) {
   const avatarSrc = counterparty?.profile_picture
     ? { uri: counterparty.profile_picture }
     : require('../../../assets/Ellipse 18.png');
-
-  // Dummy media placeholders (replace with real image URLs when your API provides them)
-  const mediaItems = new Array(4).fill(null);
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#fff' }} contentContainerStyle={{ paddingBottom: 26 }}>
@@ -147,7 +203,7 @@ export default function ChatDetails({ route, navigation }) {
         <View style={styles.curveTabs} />
       </View>
 
-      {/* About Us card */}
+      {/* About Us card (over header look) */}
       <View style={styles.cardWrap}>
         <ThemedText style={styles.cardTitle}>About Us</ThemedText>
         <ThemedText style={styles.cardBody}>
@@ -156,7 +212,7 @@ export default function ChatDetails({ route, navigation }) {
         </ThemedText>
       </View>
 
-      {/* Social Links card */}
+      {/* Social Links card (as-is) */}
       <View style={styles.cardWrap}>
         <ThemedText style={styles.cardTitle}>Social Links</ThemedText>
 
@@ -172,20 +228,67 @@ export default function ChatDetails({ route, navigation }) {
       {/* Media label row */}
       <View style={styles.mediaHeaderRow}>
         <ThemedText style={styles.mediaTitle}>Media</ThemedText>
-        <ThemedText style={styles.mediaCount}>10</ThemedText>
+        <ThemedText style={styles.mediaCount}>{media.length}</ThemedText>
       </View>
 
-      {/* Media grid (placeholders) */}
+      {/* Media grid — real chat images */}
       <FlatList
-        data={mediaItems}
+        data={media}
         horizontal
         showsHorizontalScrollIndicator={false}
-        keyExtractor={(_, i) => String(i)}
+        keyExtractor={(uri, i) => `${uri}-${i}`}
         contentContainerStyle={{ paddingHorizontal: 16 }}
-        renderItem={() => (
-          <View style={styles.mediaThumb} />
+        renderItem={({ item, index }) => (
+          <TouchableOpacity activeOpacity={0.85} onPress={() => openPreviewAt(index)}>
+            <Image source={{ uri: item }} style={styles.mediaThumbImg} />
+          </TouchableOpacity>
         )}
+        ListEmptyComponent={
+          <View style={{ paddingHorizontal: 16 }}>
+            <View style={styles.mediaThumbPlaceholder} />
+          </View>
+        }
       />
+
+      {/* Full-screen swipeable preview modal */}
+      <Modal
+        visible={previewVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewVisible(false)}
+      >
+        <View style={styles.modalBackground}>
+          <TouchableOpacity style={styles.closeButton} onPress={() => setPreviewVisible(false)}>
+            <Ionicons name="close" size={30} color="#fff" />
+          </TouchableOpacity>
+
+          <FlatList
+            ref={previewListRef}
+            data={media}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(uri, i) => `preview-${uri}-${i}`}
+            initialScrollIndex={previewIndex}
+            getItemLayout={getItemLayout}
+            onMomentumScrollEnd={handlePreviewScrollEnd}
+            renderItem={({ item }) => (
+              <View style={styles.fullSlide}>
+                <Image source={{ uri: item }} style={styles.fullImage} resizeMode="contain" />
+              </View>
+            )}
+          />
+
+          {/* Optional tiny index indicator */}
+          {media.length > 1 ? (
+            <View style={styles.indexBadge}>
+              <ThemedText style={{ color: '#fff', fontWeight: '600' }}>
+                {previewIndex + 1}/{media.length}
+              </ThemedText>
+            </View>
+          ) : null}
+        </View>
+      </Modal>
 
       {/* Danger actions */}
       <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
@@ -245,13 +348,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 6,
     elevation: 1,
-    marginTop:-40,
-    marginBottom:60
+    marginTop: -40,
+    marginBottom: 60,
   },
   cardTitle: { fontWeight: '700', marginBottom: 8, color: '#000000B2' },
-  cardBody: { color: '#555', lineHeight: 20},
+  cardBody: { color: '#555', lineHeight: 20 },
 
-  socialRow: { flexDirection: 'row', gap: 12, marginTop: 10},
+  socialRow: { flexDirection: 'row', gap: 12, marginTop: 10 },
   socialPill: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
@@ -273,15 +376,47 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-end',
   },
-  mediaTitle: { fontWeight: '700', color: '#000000B2', marginLeft:10, marginBottom:10 },
-  mediaCount: { color: '#555', marginRight:4, marginBottom:10 },
+  mediaTitle: { fontWeight: '700', color: '#000000B2', marginLeft: 10, marginBottom: 10 },
+  mediaCount: { color: '#555', marginRight: 4, marginBottom: 10 },
 
-  mediaThumb: {
+  mediaThumbImg: {
+    width: 84,
+    height: 84,
+    borderRadius: 8,
+    marginRight: 10,
+    backgroundColor: '#E8E8ED',
+  },
+  mediaThumbPlaceholder: {
     width: 84,
     height: 84,
     borderRadius: 8,
     backgroundColor: '#E8E8ED',
-    marginRight: 10,
+  },
+
+  modalBackground: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButton: { position: 'absolute', top: 48, right: 20, zIndex: 2 },
+
+  fullSlide: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullImage: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT },
+
+  indexBadge: {
+    position: 'absolute',
+    bottom: 30,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
 
   dangerRow: {
@@ -290,5 +425,5 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 12,
   },
-  dangerText: { color: '#D62C2C', fontWeight: '600', fontSize:15 },
+  dangerText: { color: '#D62C2C', fontWeight: '600', fontSize: 15 },
 });
