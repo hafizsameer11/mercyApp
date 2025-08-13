@@ -1100,33 +1100,31 @@ const ChatScreen = () => {
                                 It consists of 3 parts, select the options that best suit the service you want
                             </ThemedText>
 
-                            <View style={{ backgroundColor: "#fff", paddingVertical: 30, zIndex: 1, marginTop: -20, borderRadius: 20, elevation: 2 }}>
-                                <View style={styles.qCategoryBox}>
-                                    {item.categories?.map((cat, i) => (
-                                        <View
-                                            key={i}
-                                            style={{
-                                                flexDirection: 'row',
-                                                justifyContent: 'space-between',
-                                                borderBottomWidth: i === item.categories.length - 1 ? 0 : 1,
-                                                borderColor: '#992c55',
-                                                paddingVertical: 10,
-                                                paddingHorizontal: 12,
-                                            }}
-                                        >
-                                            <ThemedText style={{ color: '#333', fontSize: 14 }}>{cat}</ThemedText>
-                                            <ThemedText style={{ color: '#000' }}>
-                                                {i === 0 && progressData.completed_sections >= 1 ? '✅' : null}
-                                                {i === 1 && progressData.completed_sections >= 4 ? '✅' : null}
-                                                {i === 2 && progressData.completed_sections >= 14 ? '✅' : null}
-                                                {!((i === 0 && progressData.completed_sections >= 1) ||
-                                                    (i === 1 && progressData.completed_sections >= 4) ||
-                                                    (i === 2 && progressData.completed_sections >= 14)) && '-'}
-                                            </ThemedText>
-                                        </View>
-                                    ))}
+                            {/* 3-column tiles */}
+                            {/* stacked rows with only outer corners rounded */}
+                            <View style={styles.qListOuter}>
+                                <View style={styles.qList}>
+                                    {(item.categories?.length ? item.categories : ['Face', 'Skin', 'Change in body size']).map(
+                                        (label, i, arr) => {
+                                            const done =
+                                                (i === 0 && progressData.completed_sections >= 1) ||
+                                                (i === 1 && progressData.completed_sections >= 4) ||
+                                                (i === 2 && progressData.completed_sections >= 14);
+
+                                            const isLast = i === arr.length - 1;
+
+                                            return (
+                                                <View key={i} style={[styles.qRow, !isLast && styles.qRowDivider]}>
+                                                    <ThemedText style={styles.qRowLabel}>{label}</ThemedText>
+                                                    <ThemedText style={styles.qRowStatus}>{done ? '✅' : '-'}</ThemedText>
+                                                </View>
+                                            );
+                                        }
+                                    )}
                                 </View>
                             </View>
+
+
 
                             <View style={styles.qBtnRow}>
                                 {user?.role === 'user' && progressData.progress < 100 && (
@@ -2204,7 +2202,55 @@ const styles = StyleSheet.create({
 
         borderColor: '#992C55',
         borderBottomWidth: 8,
-    }
+    },
+    qGridOuter: {
+        backgroundColor: '#fff',
+        paddingVertical: 20,
+        borderRadius: 20,
+        elevation: 2,
+        zIndex: 1,
+        marginTop: -20,
+    },
+  qListOuter: {
+  backgroundColor: '#fff',
+  paddingVertical: 20,
+  borderRadius: 20,
+  elevation: 2,
+  zIndex: 1,
+  marginTop: -20,
+},
+
+/* The pink rounded container that gives radius ONLY to the top/bottom rows */
+qList: {
+  backgroundColor: '#F5EAEE',
+  borderRadius: 12,
+  marginHorizontal: 12,
+  borderWidth: 1,
+  borderColor: '#E7B8C6', // subtle pink stroke
+  overflow: 'hidden',      // ensures middle row has no visible radius
+},
+
+/* Every row same size */
+qRow: {
+  minHeight: 48,
+  paddingHorizontal: 14,
+  paddingVertical: 12,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  backgroundColor: 'transparent',
+},
+
+/* Thin separator between Face/Skin and Skin/Change */
+qRowDivider: {
+  borderBottomWidth: 1,
+  borderBottomColor: '#E7B8C6',
+},
+
+qRowLabel: { color: '#333', fontSize: 14, fontWeight: '600' },
+qRowStatus: { color: '#000', fontSize: 16 },
+
+
 
 });
 
