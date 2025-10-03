@@ -1238,10 +1238,10 @@ const formatNaira = (v) => {
                     <View
                         style={[
                             {
-                                paddingBottom: 20,
-                                backgroundColor: isMyMsgImage ? '#992C55' : '#E7E7E7',
-                                borderRadius: 10,
-                                position: 'relative'
+                            paddingBottom: 20,
+                            backgroundColor: isMyMsgImage ? '#992C55' : '#E7E7E7',
+                            borderRadius: 10,
+                            position: 'relative'
                             },
                             highlightId === String(item.id) && styles.highlightedMessage
                         ]}
@@ -1688,7 +1688,7 @@ const formatNaira = (v) => {
                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                               <ThemedText numberOfLines={1} style={{ fontSize: 12, color: mine ? '#fff' : '#444', flex: 1 }}>
                                 {item.reply_preview || 'Replied message'}
-                              </ThemedText>
+                            </ThemedText>
                               <Ionicons name="arrow-up" size={12} color={mine ? '#fff' : '#666'} style={{ marginLeft: 4 }} />
                             </View>
                         </TouchableOpacity>
@@ -1758,20 +1758,20 @@ const formatNaira = (v) => {
                         itemOffsetsRef.current[String(item.id)] = y;
                     }}>
                     {item.reply_to_id && (
-                            <TouchableOpacity
-                                activeOpacity={0.7}
-                                onPress={() => scrollToMessage(item.reply_to_id)}
-                                style={{
-                                    backgroundColor: isMyMessage ? 'rgba(153,44,85,0.12)' : '#eee',
-                                    padding: 8, borderLeftWidth: 3, borderLeftColor: '#992C55',
-                                    borderRadius: 8, marginBottom: 6
-                                }}
-                            >
+                        <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() => scrollToMessage(item.reply_to_id)}
+                            style={{
+                                backgroundColor: isMyMessage ? 'rgba(153,44,85,0.12)' : '#eee',
+                                padding: 8, borderLeftWidth: 3, borderLeftColor: '#992C55',
+                                borderRadius: 8, marginBottom: 6
+                            }}
+                        >
                                 <ThemedText numberOfLines={1} style={{ fontSize: 12, color: isMyMessage ? '#444' : '#444', flex: 1 }}>
-                                    {item.reply_preview || 'Replied message'}
-                                </ThemedText>
+                                {item.reply_preview || 'Replied message'}
+                            </ThemedText>
                                 <Ionicons name="arrow-up" size={12} color={isMyMessage ? '#666' : '#666'} style={{ marginLeft: 4 }} />
-                            </TouchableOpacity>
+                        </TouchableOpacity>
                     )}
                     <View style={[
                         isMyMessage ? styles.myBubble : styles.otherBubble,

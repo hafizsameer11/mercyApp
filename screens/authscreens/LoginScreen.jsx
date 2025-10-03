@@ -27,6 +27,8 @@ import ThemedText from '../../components/ThemedText';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import API from '../../config/api.config';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
 
 const LoginScreen = () => {
   const navigation = useNavigation();
@@ -95,6 +97,95 @@ const LoginScreen = () => {
     }
   };
 
+  // Google Authentication
+  const handleGoogleAuth = async () => {
+    try {
+      setIsLoading(true);
+
+      // Configure Google OAuth
+      const redirectUri = AuthSession.makeRedirectUri({
+        useProxy: true,
+      });
+
+      console.log('Redirect URI:', redirectUri);
+
+      const request = new AuthSession.AuthRequest({
+        clientId: '735121439507-793fqpbr7nh3k8tnh79pgbmf2sfitkhj.apps.googleusercontent.com',
+        scopes: ['openid', 'profile', 'email'],
+        redirectUri,
+        responseType: AuthSession.ResponseType.Code,
+        extraParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      });
+
+      const result = await request.promptAsync({
+        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+      });
+
+      console.log('Auth result:', result);
+
+      if (result.type === 'success') {
+        const { code } = result.params;
+        
+        console.log('Authorization code received:', code);
+        
+        // Exchange code for access token
+        const tokenResponse = await AuthSession.exchangeCodeAsync(
+          {
+            clientId: '735121439507-793fqpbr7nh3k8tnh79pgbmf2sfitkhj.apps.googleusercontent.com',
+            code,
+            redirectUri,
+            extraParams: {},
+          },
+          {
+            tokenEndpoint: 'https://oauth2.googleapis.com/token',
+          }
+        );
+
+        console.log('Token response:', tokenResponse);
+        const { accessToken } = tokenResponse;
+        
+        // Send access token to your backend
+        const response = await axios.post(
+          API.SOCIAL_AUTH('google'),
+          {
+            access_token: accessToken,
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+            },
+          }
+        );
+
+        console.log('Backend response:', response.data);
+
+        if (response.data.status) {
+          // Store token and user data
+          await AsyncStorage.setItem('token', response.data.token);
+          await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
+          
+          notify('Success', 'Login successful!');
+          navigation.navigate('Main');
+        } else {
+          notify('Login failed', 'Authentication failed');
+        }
+      } else if (result.type === 'cancel') {
+        notify('Login cancelled', 'Authentication cancelled');
+      } else {
+        notify('Login failed', 'Authentication failed');
+      }
+    } catch (error) {
+      console.error('Google auth error:', error);
+      notify('Login failed', 'Authentication failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -140,6 +231,7 @@ const LoginScreen = () => {
                     <TouchableOpacity
                       style={[styles.socialButton, { flexDirection: 'row', alignItems: 'center' }]}
                       disabled={isLoading}
+                      onPress={handleGoogleAuth}
                     >
                       <Image style={{ height: 25, width: 25, marginLeft: 5 }} source={google} />
                       <ThemedText style={styles.titleText}>Google</ThemedText>

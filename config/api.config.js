@@ -23,6 +23,7 @@ const API = {
   EDIT_MESSAGE: (messageId) => `${BASE_URL}/edit-message/${messageId}`,
   DOWNLOADED: (messageId) => `${BASE_URL}/downloaded/${messageId}`,
   DELETE_CHAT: (chatId) => `${BASE_URL}/delete-chat/${chatId}`,
+  SOCIAL_AUTH: (provider) => `${BASE_URL}/auth/social/${provider}`,
 
 
 
