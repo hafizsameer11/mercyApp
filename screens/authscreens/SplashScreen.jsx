@@ -1,11 +1,12 @@
 import React from 'react';
-import { View ,StyleSheet, Text, TouchableOpacity, Image } from 'react-native';
+import { View ,StyleSheet, Text, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import image from '../../assets/logo.png'; // Adjust the path as necessary
+import image from '../../assets/logo-m.png'; // Adjust the path as necessary
+const { width } = Dimensions.get('window');
 
 const SplashScreen = () => {
     
@@ -42,11 +43,13 @@ const SplashScreen = () => {
   );
 };
 const styles = StyleSheet.create({
-logo:{
-    width: 300,
-    height: 200,
+  logo: {
+    width: width * 0.8,   // 80% of screen width
+    height: undefined,    // let aspect ratio decide height
+    aspectRatio: 3 / 2,   // or your logo’s real ratio
     alignSelf: 'center',
-}
-})
+    resizeMode: 'contain', // ✅ no crop
+  }
+});
 
 export default SplashScreen;

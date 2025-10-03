@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mercynative",
-    "slug": "mercynative",
+    "name": "EB Mercy",
+    "slug": "ebmercy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logo.jpg",
@@ -33,11 +33,12 @@
     },
     "plugins": [
       "expo-audio",
-      "expo-font"
+      "expo-font",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {
-        "projectId": "306f27c1-39c3-4b9c-a996-4618b8e96cb6"
+        "projectId": "82288cf8-6085-409a-8ac5-d9a5449171b2"
       }
     }
   }

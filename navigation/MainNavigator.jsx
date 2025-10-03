@@ -20,24 +20,23 @@ const MainNavigator = () => {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: '#992C55',
-        tabBarInactiveTintColor: '#999',
-        tabBarShowLabel: true,
-        // 3. Update tabBarStyle to use the bottom inset
-        tabBarStyle: {
-          backgroundColor: '#fff',
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          // Set a base height and add the inset
-          height: 65 + insets.bottom,
-          // Add padding to the bottom to push content up
-          paddingBottom: insets.bottom,
-        },
-        // 4. Simplify tabBarLabelStyle
-        tabBarLabelStyle: {
-          fontSize: 12,
-          marginBottom: 5,
-        },
+    tabBarActiveTintColor: '#992C55',
+    tabBarInactiveTintColor: '#999',
+    tabBarShowLabel: true,
+    tabBarHideOnKeyboard: true,        
+    tabBarStyle: {
+      backgroundColor: '#fff',
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      height: 65,
+      paddingBottom: Math.max(insets.bottom, 8),
+      paddingTop: 6,
+    },
+    tabBarLabelStyle: {
+      fontSize: 12,
+      marginBottom: 5,
+    },
+
         tabBarIcon: ({ color, focused, size }) => {
           let iconName;
           let iconComponent = Ionicons;

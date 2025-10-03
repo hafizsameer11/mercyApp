@@ -200,7 +200,7 @@ const ProfileScreen = () => {
             text="My Orders"
             textColor="#393b4b"
             bgColor="#BEC5FB"
-            onPress={() => navigation.navigate('MyOrders')}
+            onPress={() => navigation.navigate('Orders')}
           />
         ) : (
           <LinkCard

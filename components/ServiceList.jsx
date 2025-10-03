@@ -164,6 +164,20 @@ const ServiceCategoryList = () => {
         }
         getUserDetails()
     }, []);
+    // Ask user to confirm; resolves true/false
+const confirmAction = (title, message) =>
+  new Promise((resolve) => {
+    Alert.alert(
+      title,
+      message,
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Proceed', style: 'default', onPress: () => resolve(true) },
+      ],
+      { cancelable: true }
+    );
+  });
+
     return (
         <View style={styles.wrapper}>
             {/* Service Buttons */}
@@ -267,68 +281,70 @@ const ServiceCategoryList = () => {
                         {/* <TouchableOpacity style={styles.proceedBtn} onPress={closeModal}>
                             <Text style={{ color: 'white', fontWeight: 'bold' }}>Proceed</Text>
                         </TouchableOpacity> */}
-                        <TouchableOpacity
-                            style={styles.proceedBtn}
-                            onPress={async () => {
-                                const finalServiceName =
-                                    selectedService?.name === 'Other Services'
-                                        ? customServiceInput.trim() || 'Other Services'
-                                        : selectedService.name;
+                     <TouchableOpacity
+  style={styles.proceedBtn}
+  onPress={async () => {
+    const finalServiceName =
+      selectedService?.name === 'Other Services'
+        ? (customServiceInput || '').trim() || 'Other Services'
+        : selectedService?.name;
 
-                                try {
-                                    const token = await AsyncStorage.getItem('token');
+    // 1) Ask for confirmation first
+    const ok = await confirmAction(
+      'Confirm Service',
+      `Do you want to proceed with "${finalServiceName}"?`
+    );
+    if (!ok) return;
 
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        alert('You must be logged in.');
+        return;
+      }
 
-                                    console.log('Using token:', token); // debug
+      // 2) Proceed after confirmation
+      const response = await axios.post(
+        API.ASSIGN_AGENT,
+        { service_type: finalServiceName },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
-                                    if (!token) {
-                                        alert('You must be logged in.');
-                                        return;
-                                    }
+      const chatId = response?.data?.data?.chat_id;
+      const agentData = response?.data?.data?.agent;
 
-                                    const response = await axios.post(API.ASSIGN_AGENT, {
-                                        service_type: finalServiceName,
-                                    }, {
-                                        headers: {
-                                            'Authorization': `Bearer ${token}`,
-                                            'Accept': 'application/json',
-                                            'Content-Type': 'application/json',
-                                        },
-                                    });
-                                    console.log('Response:', response.data);
-                                    const chatId = response.data.data.chat_id;
+      if (agentData && chatId) {
+        closeModal();
+        setCustomServiceInput('');
 
+        navigation.navigate('Chat', {
+          service: finalServiceName,
+          userRole: 'agent',
+          user: 'LoggedInUser',
+          agent: {
+            name: agentData.name,
+            image: { uri: agentData.image_url },
+          },
+          chat_id: chatId,
+        });
+      } else {
+        alert('No agent assigned.');
+      }
+    } catch (error) {
+      console.error('Error assigning agent:', error?.response?.data || error.message);
+      alert('Failed to assign agent.');
+    }
+  }}
+>
+  <ThemedText style={{ color: 'white', fontWeight: 'bold' }}>Proceed</ThemedText>
+</TouchableOpacity>
 
-                                    const agentData = response.data.data.agent;
-                                    console.log(response.data.data)
-
-                                    if (agentData) {
-                                        closeModal();
-                                        setCustomServiceInput('');
-
-                                        navigation.navigate('Chat', {
-                                            service: finalServiceName,
-                                            userRole: 'agent',
-                                            user: 'LoggedInUser',
-                                            agent: {
-                                                name: agentData.name,
-                                                image: { uri: agentData.image_url },
-                                            },
-                                            chat_id: response.data.data.chat_id,
-                                        });
-                                    } else {
-                                        alert('No agent assigned.');
-                                    }
-
-                                } catch (error) {
-                                    console.error('Error assigning agent:', error?.response?.data || error.message);
-                                    alert('Failed to assign agent.');
-                                }
-                            }}
-
-                        >
-                            <ThemedText style={{ color: 'white', fontWeight: 'bold' }}>Proceed</ThemedText>
-                        </TouchableOpacity>
                     </View>
                 </Animated.View>
             </Modal>

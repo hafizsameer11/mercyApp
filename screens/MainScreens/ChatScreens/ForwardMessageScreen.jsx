@@ -48,39 +48,63 @@ export default function ForwardMessageScreen() {
     }
   };
 
-  const forwardMessageToUser = async () => {
-    if (!selectedUserId || !forwardedMessage) {
-      Alert.alert('Please select a user to forward the message.');
-      return;
-    }
+const forwardMessageToUser = async () => {
+  if (!selectedUserId || !forwardedMessage) {
+    Alert.alert('Please select a user to forward the message.');
+    return;
+  }
 
-    try {
-      const token = await AsyncStorage.getItem('token');
-      const response = await axios.post(
-        'https://editbymercy.hmstech.xyz/api/forward-message',
-        {
-          original_message_id: forwardedMessage.id,
-          receiver_id: selectedUserId,
+  try {
+    const token = await AsyncStorage.getItem('token');
+    const response = await axios.post(
+      'https://editbymercy.hmstech.xyz/api/forward-message',
+      {
+        original_message_id: forwardedMessage.id,
+        receiver_id: selectedUserId,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
         },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/json',
-          },
-        }
-      );
-
-      if (response.data.status === 'success') {
-        Alert.alert('Success', 'Message forwarded successfully.');
-        navigation.goBack();
-      } else {
-        Alert.alert('Error', 'Failed to forward message.');
       }
-    } catch (error) {
-      console.error('Forwarding error:', error.response?.data || error.message);
-      Alert.alert('Error', 'Something went wrong while forwarding the message.');
+    );
+
+    if (response.data?.status === 'success') {
+      // ✅ chat is directly in data (no `.chat`)
+      const chat = response?.data?.data?.chat;
+
+      // Identify agent & user
+      const pA = chat?.participant_a || {};
+      const pB = chat?.participant_b || {};
+      const agent =
+        [pA, pB].find(p => p?.role === 'support' || p?.id === chat.agent_id) || pB || pA;
+      const user = agent?.id === pA?.id ? pB : pA;
+
+      // Optional: useful debug
+      // console.log('Chat ->', chat);
+      // console.log('Agent ->', agent, 'User ->', user);
+
+      Alert.alert('Success', 'Message forwarded successfully.');
+      console.log('Forwarded to chat:', chat?.id);
+      navigation.navigate('Chat', {
+        chat_id: chat?.id,                 // 🔴 required
+        userRole: 'agent',
+        user: user?.name || 'Customer',
+        agent: {                          // 🔴 required
+          name: agent?.name || 'Agent',
+          image: agent?.profile_picture || null,
+        },
+        service: chat.service || 'General',
+      });
+    } else {
+      Alert.alert('Error', 'Failed to forward message.');
     }
-  };
+  } catch (error) {
+    console.error('Forwarding error:', error.response?.data || error.message);
+    Alert.alert('Error', 'Something went wrong while forwarding the message.');
+  }
+};
 
   useEffect(() => {
     fetchUsers();

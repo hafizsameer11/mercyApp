@@ -9,8 +9,9 @@ const faqData = [
   {
     id: 1,
     title: 'Introductory Video',
-    videoUrl: 'https://youtu.be/RImlTt1wjxE?si=aOZtkxNOfA2sV5Bs',
-    description: 'Watch this video to learn how to use the mobile app to order for all your photo services.',
+    videoUrl: 'https://www.youtube.com/watch?v=RO3lLV9SXzg',
+    description:
+      'Watch this video to learn how to use the mobile app to order for all your photo services.',
   },
   {
     id: 2,
@@ -24,6 +25,41 @@ const faqData = [
   },
 ];
 
+/** ---------- helpers (no UI/style change) ---------- */
+// Convert normal watch URL to embed URL
+const toYouTubeEmbed = (url) => {
+  const m = url?.match(/[?&]v=([^&]+)/);
+  return m ? `https://www.youtube.com/embed/${m[1]}` : url;
+};
+
+// Full-bleed responsive iframe (fills the 200px container you already have)
+const embedHtml = (src) => `<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<style>
+  html, body { margin:0; padding:0; background:#000; height:100%; }
+  .wrap { position:relative; width:100%; height:100%; }
+  .inner { position:absolute; inset:0; }
+  iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="inner">
+      <iframe
+        src="${src}"
+        title="YouTube"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowfullscreen
+      ></iframe>
+    </div>
+  </div>
+</body>
+</html>`;
+
+/** --------------------------------------------------- */
+
 const FaqScreen = ({ navigation }) => {
   const [expandedIndex, setExpandedIndex] = useState(null);
 
@@ -36,7 +72,7 @@ const FaqScreen = ({ navigation }) => {
 
     return (
       <View style={styles.card}>
-        <StatusBar style='dark' />
+        <StatusBar style="dark" />
         <View style={styles.row}>
           <ThemedText style={styles.title}>{item.title}</ThemedText>
           <TouchableOpacity style={{ borderWidth: 1 }} onPress={() => toggleExpand(index)}>
@@ -49,10 +85,13 @@ const FaqScreen = ({ navigation }) => {
             {item.videoUrl ? (
               <View style={styles.videoContainer}>
                 <WebView
-                  style={{ flex: 1 }}
+                  originWhitelist={['*']}
                   javaScriptEnabled
                   domStorageEnabled
-                  source={{ uri: item.videoUrl }}
+                  allowsFullscreenVideo
+                  automaticallyAdjustContentInsets={false}
+                  scrollEnabled={false}
+                  source={{ html: embedHtml(toYouTubeEmbed(item.videoUrl)) }}
                 />
               </View>
             ) : null}
