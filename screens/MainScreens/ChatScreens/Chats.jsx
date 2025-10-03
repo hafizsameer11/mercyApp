@@ -147,7 +147,9 @@ const ChatScreen = () => {
     const { chat_id, scrollToBottom: navWantsBottom } = route.params || {};
     console.log("chatsid ",chat_id)
     const [messageActionModalVisible, setMessageActionModalVisible] = useState(false);
+    const [editMessageModalVisible, setEditMessageModalVisible] = useState(false);
     const [selectedMessage, setSelectedMessage] = useState(null);
+    const [editMessageText, setEditMessageText] = useState('');
 
     const [forwardedMessage, setForwardedMessage] = useState(null);
 
@@ -181,14 +183,7 @@ const ChatScreen = () => {
     const stickToBottomRef = useRef(true);
     const didInitialAutoScrollRef = useRef(false);
 
-    // download status (per-message)
-    const [downloadedIds, setDownloadedIds] = useState(new Set());
-    const markDownloaded = (id) => setDownloadedIds(prev => {
-        const next = new Set(prev);
-        next.add(String(id));
-        return next;
-    });
-    const isDownloaded = (id) => downloadedIds.has(String(id));
+    // Download status is now handled via API is_downloaded field
     const Ticks = ({ read, mine }) => {
         if (!mine) return null;
         return (
@@ -593,8 +588,29 @@ const formatNaira = (v) => {
                 localUri = res.uri;
             }
             await MediaLibrary.saveToLibraryAsync(localUri);
-            if (messageId) markDownloaded(messageId);
-            alert('Saved to your gallery.');
+            
+            // Call API to track download
+            if (messageId) {
+                try {
+                    const token = await AsyncStorage.getItem('token');
+                    await axios.post(API.DOWNLOADED(messageId), {}, {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            Accept: 'application/json',
+                        },
+                    });
+                    
+                    // Update local state to show checkmark immediately
+                    setMessages(prev => prev.map(msg => 
+                        msg.id === messageId 
+                            ? { ...msg, is_downloaded: true }
+                            : msg
+                    ));
+                } catch (apiError) {
+                    console.log('Download tracking API error:', apiError);
+                    // Don't show error to user, just log it
+                }
+            }
         } catch (e) {
             console.log('Download error:', e);
             alert('Failed to save.');
@@ -631,6 +647,9 @@ const formatNaira = (v) => {
                 audio: msg.type === 'voice' ? msg.file : null,
                 video: msg.type === 'video' ? msg.file : null,
                 type: msg.type || 'text',
+                is_deleted: msg.is_deleted || false,
+                is_edited: msg.is_edited || false,
+                is_downloaded: msg.is_downloaded || false,
                 time: new Date(msg.created_at).toLocaleTimeString([], {
                     hour: '2-digit', minute: '2-digit', hour12: true,
                 }),
@@ -764,6 +783,9 @@ const formatNaira = (v) => {
                     audio: msg.type === 'voice' ? msg.file : null,
                     type: msg.type,
                     video: msg.type === 'video' ? msg.file : null,
+                    is_deleted: msg.is_deleted || false,
+                    is_edited: msg.is_edited || false,
+                    is_downloaded: msg.is_downloaded || false,
                     delivered: true,
                     read: Boolean(msg.is_read || msg.read_at),
                     reply_to_id: msg.reply_to_id || null,
@@ -826,24 +848,46 @@ const formatNaira = (v) => {
     const pendingScrollRef = useRef(null);
     const scrollToMessage = useCallback((id) => {
         const key = String(id);
-        const y = itemOffsetsRef.current[key];
         const doHighlight = () => {
             setHighlightId(key);
             if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
-            highlightTimerRef.current = setTimeout(() => setHighlightId(null), 1600);
+            highlightTimerRef.current = setTimeout(() => setHighlightId(null), 2500);
         };
 
-        if (typeof y === 'number') {
-            flatListRef.current?.scrollToOffset({ offset: Math.max(y - 80, 0), animated: true });
-            doHighlight();
-            return;
-        }
-
+        // First try to find the message index
         const idx = messages.findIndex(m => String(m.id) === key);
         if (idx >= 0) {
-            pendingScrollRef.current = key;
-            flatListRef.current?.scrollToIndex?.({ index: idx, animated: true, viewPosition: 0 });
-            setTimeout(doHighlight, 120);
+            // Use scrollToIndex for more reliable scrolling
+            try {
+                flatListRef.current?.scrollToIndex({ 
+                    index: idx, 
+                    animated: true, 
+                    viewPosition: 0.2 // Position message in upper portion of screen
+                });
+                // Highlight after scroll animation completes
+                setTimeout(doHighlight, 500);
+            } catch (error) {
+                console.log('scrollToIndex failed, trying scrollToOffset:', error);
+                // Fallback to scrollToOffset if scrollToIndex fails
+                const y = itemOffsetsRef.current[key];
+                if (typeof y === 'number') {
+                    flatListRef.current?.scrollToOffset({ 
+                        offset: Math.max(y - 120, 0), 
+                        animated: true 
+                    });
+                    setTimeout(doHighlight, 500);
+                } else {
+                    // Last resort: scroll to approximate position
+                    const approximateOffset = idx * 100; // Rough estimate
+                    flatListRef.current?.scrollToOffset({ 
+                        offset: approximateOffset, 
+                        animated: true 
+                    });
+                    setTimeout(doHighlight, 500);
+                }
+            }
+        } else {
+            console.log('Message not found for ID:', key);
         }
     }, [messages]);
 
@@ -1192,13 +1236,15 @@ const formatNaira = (v) => {
                     }}
                 >
                     <View
-                        style={{
-                            paddingBottom: 20,
-                            backgroundColor: isMyMsgImage ? '#992C55' : '#E7E7E7',
-                            borderRadius: 10,
-                            position: 'relative'
-                            
-                        }}
+                        style={[
+                            {
+                                paddingBottom: 20,
+                                backgroundColor: isMyMsgImage ? '#992C55' : '#E7E7E7',
+                                borderRadius: 10,
+                                position: 'relative'
+                            },
+                            highlightId === String(item.id) && styles.highlightedMessage
+                        ]}
                     >
                         {item.reply_to_id && (
                             <TouchableOpacity
@@ -1243,7 +1289,7 @@ const formatNaira = (v) => {
                                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                 >
                                     <Ionicons
-                                        name={isDownloaded(item.id) ? 'checkmark-outline' : 'download-outline'}
+                                        name={item.is_downloaded ? 'checkmark-outline' : 'download-outline'}
                                         size={18}
                                         color="#fff"
                                     />
@@ -1297,7 +1343,10 @@ const formatNaira = (v) => {
                         )}
 
                         <TouchableOpacity onPress={() => openDocument(item.file || item.document, item.name || `file_${item.id}`)}>
-                            <View style={{ padding: 10, backgroundColor: '#eee', borderRadius: 10 }}>
+                            <View style={[
+                                { padding: 10, backgroundColor: '#eee', borderRadius: 10 },
+                                highlightId === String(item.id) && styles.highlightedMessage
+                            ]}>
                                 <Ionicons name="document-text-outline" size={24} color="#555" />
                                 <ThemedText>{item.name}</ThemedText>
                             </View>
@@ -1338,7 +1387,10 @@ const formatNaira = (v) => {
                             </TouchableOpacity>
                         )}
 
-                        <View style={isMyMessage ? styles.myBubble : styles.otherBubble}>
+                        <View style={[
+                            isMyMessage ? styles.myBubble : styles.otherBubble,
+                            highlightId === String(item.id) && styles.highlightedMessage
+                        ]}>
                             <TouchableOpacity onPress={() => playAudio(item.audio, item.id)}>
                                 <Ionicons
                                     name={playingAudioId === item.id && isAudioPlaying ? 'pause' : 'play'}
@@ -1633,9 +1685,12 @@ const formatNaira = (v) => {
                                 borderRadius: 8, marginBottom: 6
                             }}
                         >
-                            <ThemedText numberOfLines={1} style={{ fontSize: 12, color: mine ? '#fff' : '#444' }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <ThemedText numberOfLines={1} style={{ fontSize: 12, color: mine ? '#fff' : '#444', flex: 1 }}>
                                 {item.reply_preview || 'Replied message'}
-                            </ThemedText>
+                              </ThemedText>
+                              <Ionicons name="arrow-up" size={12} color={mine ? '#fff' : '#666'} style={{ marginLeft: 4 }} />
+                            </View>
                         </TouchableOpacity>
                     )}
 
@@ -1668,7 +1723,7 @@ const formatNaira = (v) => {
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
                             <Ionicons
-                                name={isDownloaded(item.id) ? 'checkmark-outline' : 'download-outline'}
+                                name={item.is_downloaded ? 'checkmark-outline' : 'download-outline'}
                                 size={18}
                                 color="#fff"
                             />
@@ -1692,6 +1747,7 @@ const formatNaira = (v) => {
         return (
             <TouchableOpacity
                 onLongPress={() => {
+                    if (item.is_deleted) return; // Don't show actions for deleted messages
                     setSelectedMessage(item);
                     setMessageActionModalVisible(true);
                 }}
@@ -1702,24 +1758,41 @@ const formatNaira = (v) => {
                         itemOffsetsRef.current[String(item.id)] = y;
                     }}>
                     {item.reply_to_id && (
-                        <TouchableOpacity
-                            activeOpacity={0.7}
-                            onPress={() => scrollToMessage(item.reply_to_id)}
-                            style={{
-                                backgroundColor: isMyMessage ? 'rgba(153,44,85,0.12)' : '#eee',
-                                padding: 8, borderLeftWidth: 3, borderLeftColor: '#992C55',
-                                borderRadius: 8, marginBottom: 6
-                            }}
-                        >
-                            <ThemedText numberOfLines={1} style={{ fontSize: 12, color: isMyMessage ? '#444' : '#444' }}>
-                                {item.reply_preview || 'Replied message'}
-                            </ThemedText>
-                        </TouchableOpacity>
+                            <TouchableOpacity
+                                activeOpacity={0.7}
+                                onPress={() => scrollToMessage(item.reply_to_id)}
+                                style={{
+                                    backgroundColor: isMyMessage ? 'rgba(153,44,85,0.12)' : '#eee',
+                                    padding: 8, borderLeftWidth: 3, borderLeftColor: '#992C55',
+                                    borderRadius: 8, marginBottom: 6
+                                }}
+                            >
+                                <ThemedText numberOfLines={1} style={{ fontSize: 12, color: isMyMessage ? '#444' : '#444', flex: 1 }}>
+                                    {item.reply_preview || 'Replied message'}
+                                </ThemedText>
+                                <Ionicons name="arrow-up" size={12} color={isMyMessage ? '#666' : '#666'} style={{ marginLeft: 4 }} />
+                            </TouchableOpacity>
                     )}
-                    <View style={isMyMessage ? styles.myBubble : styles.otherBubble}>
-                        <ThemedText style={[isMyMessage ? styles.msgText : styles.msgTextleft]}>
-                            {item.text}
+                    <View style={[
+                        isMyMessage ? styles.myBubble : styles.otherBubble,
+                        highlightId === String(item.id) && styles.highlightedMessage
+                    ]}>
+                        <ThemedText style={[
+                            isMyMessage ? styles.msgText : styles.msgTextleft,
+                            item.is_deleted && { fontStyle: 'italic', opacity: 0.7 }
+                        ]}>
+                            {item.is_deleted ? 'This message was deleted' : item.text}
                         </ThemedText>
+                        {item.is_edited && !item.is_deleted && (
+                            <ThemedText style={{
+                                fontSize: 10,
+                                color: isMyMessage ? 'rgba(255,255,255,0.7)' : '#666',
+                                fontStyle: 'italic',
+                                marginTop: 2
+                            }}>
+                                Edited
+                            </ThemedText>
+                        )}
                         <TimeWithTicks item={item} mine={isMyMessage} />
                     </View>
                 </View>
@@ -1749,6 +1822,64 @@ const formatNaira = (v) => {
         } catch (error) {
             console.error('Update status error:', error.response?.data || error.message);
             alert('❌ Error updating status');
+        }
+    };
+
+    // Delete message function
+    const deleteMessage = async (messageId) => {
+        try {
+            const token = await AsyncStorage.getItem('token');
+            const response = await axios.post(API.DELETE_MESSAGE(messageId), {}, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: 'application/json',
+                },
+            });
+
+            if (response.data.status === 'success') {
+                // Update local state to mark message as deleted
+                setMessages(prev => prev.map(msg => 
+                    msg.id === messageId 
+                        ? { ...msg, is_deleted: true, text: 'This message was deleted' }
+                        : msg
+                ));
+                messagesQuery.refetch();
+            } else {
+                alert('Failed to delete message');
+            }
+        } catch (error) {
+            console.error('Delete message error:', error.response?.data || error.message);
+            alert('Failed to delete message');
+        }
+    };
+
+    // Edit message function
+    const editMessage = async (messageId, newText) => {
+        try {
+            const token = await AsyncStorage.getItem('token');
+            const response = await axios.post(API.EDIT_MESSAGE(messageId), {
+                message: newText
+            }, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: 'application/json',
+                },
+            });
+
+            if (response.data.status === 'success') {
+                // Update local state to mark message as edited
+                setMessages(prev => prev.map(msg => 
+                    msg.id === messageId 
+                        ? { ...msg, text: newText, is_edited: true }
+                        : msg
+                ));
+                messagesQuery.refetch();
+            } else {
+                alert('Failed to edit message');
+            }
+        } catch (error) {
+            console.error('Edit message error:', error.response?.data || error.message);
+            alert('Failed to edit message');
         }
     };
 
@@ -2405,6 +2536,91 @@ const formatNaira = (v) => {
                                         <Text style={styles.modalItemText}>Reply</Text>
                                     </TouchableOpacity>
 
+                                    {/* Only show edit and delete for text messages and if user is the sender */}
+                                    {selectedMessage?.type === 'text' && selectedMessage?.sender === user?.id && (
+                                        <>
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    setEditMessageText(selectedMessage.text);
+                                                    setEditMessageModalVisible(true);
+                                                    setMessageActionModalVisible(false);
+                                                }}
+                                                style={styles.modalItemRow}
+                                            >
+                                                <Ionicons name="create-outline" size={20} color="#000" style={styles.modalIcon} />
+                                                <Text style={styles.modalItemText}>Edit</Text>
+                                            </TouchableOpacity>
+
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    deleteMessage(selectedMessage.id);
+                                                    setMessageActionModalVisible(false);
+                                                }}
+                                                style={styles.modalItemRow}
+                                            >
+                                                <Ionicons name="trash-outline" size={20} color="#ff4444" style={styles.modalIcon} />
+                                                <Text style={[styles.modalItemText, { color: '#ff4444' }]}>Delete</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    )}
+
+                                </View>
+                            </TouchableOpacity>
+                        </Modal>
+
+                        {/* Edit Message Modal */}
+                        <Modal
+                            visible={editMessageModalVisible}
+                            animationType="slide"
+                            transparent
+                            onRequestClose={() => setEditMessageModalVisible(false)}
+                        >
+                            <TouchableOpacity
+                                style={styles.modalOverlay}
+                                activeOpacity={1}
+                                onPress={() => setEditMessageModalVisible(false)}
+                            >
+                                <View style={styles.editMessageModal}>
+                                    <View style={styles.editMessageHeader}>
+                                        <ThemedText style={styles.editMessageTitle}>Edit Message</ThemedText>
+                                        <TouchableOpacity
+                                            onPress={() => setEditMessageModalVisible(false)}
+                                            style={styles.closeButton}
+                                        >
+                                            <Ionicons name="close" size={24} color="#666" />
+                                        </TouchableOpacity>
+                                    </View>
+                                    
+                                    <TextInput
+                                        style={styles.editMessageInput}
+                                        value={editMessageText}
+                                        onChangeText={setEditMessageText}
+                                        placeholder="Edit your message..."
+                                        multiline
+                                        autoFocus
+                                    />
+                                    
+                                    <View style={styles.editMessageActions}>
+                                        <TouchableOpacity
+                                            onPress={() => setEditMessageModalVisible(false)}
+                                            style={[styles.editMessageButton, styles.cancelButton]}
+                                        >
+                                            <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
+                                        </TouchableOpacity>
+                                        
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                if (editMessageText.trim() && selectedMessage) {
+                                                    editMessage(selectedMessage.id, editMessageText.trim());
+                                                    setEditMessageModalVisible(false);
+                                                    setEditMessageText('');
+                                                }
+                                            }}
+                                            style={[styles.editMessageButton, styles.saveButton]}
+                                        >
+                                            <ThemedText style={styles.saveButtonText}>Save</ThemedText>
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
                             </TouchableOpacity>
                         </Modal>
@@ -2420,10 +2636,24 @@ const formatNaira = (v) => {
                                         <TouchableOpacity onPress={pickDocument} style={[styles.attachmentOption, { marginLeft: 15 }]}>
                                             <Ionicons name="documents-outline" size={24} color="#fff" />
                                         </TouchableOpacity>
+                                        {userRole === 'support' && (
+                                            <TouchableOpacity 
+                                                onPress={() => {
+                                                    setAttachmentModal(false);
+                                                    setModalVisible(true);
+                                                }} 
+                                                style={[styles.attachmentOption, { marginLeft: 15 }]}
+                                            >
+                                                <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
+                                            </TouchableOpacity>
+                                        )}
                                     </View>
                                     <View style={{ flexDirection: 'row', borderRadius: 12, gap: 40, marginTop: -9 }}>
                                         <ThemedText style={[styles.attachmentOptionText, { marginLeft: 20 }]}>Gallery</ThemedText>
                                         <ThemedText style={styles.attachmentOptionText}>Document</ThemedText>
+                                        {userRole === 'support' && (
+                                            <ThemedText style={styles.attachmentOptionText}>Options</ThemedText>
+                                        )}
                                     </View>
                                 </Pressable>
                             </Pressable>
@@ -2923,6 +3153,73 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: '700',
         fontSize: 18,
+    },
+
+    // Edit Message Modal Styles
+    editMessageModal: {
+        backgroundColor: '#fff',
+        margin: 20,
+        borderRadius: 12,
+        padding: 20,
+        maxHeight: '80%',
+    },
+    editMessageHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    editMessageTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#333',
+    },
+    closeButton: {
+        padding: 4,
+    },
+    editMessageInput: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        padding: 12,
+        fontSize: 16,
+        minHeight: 100,
+        textAlignVertical: 'top',
+        marginBottom: 16,
+    },
+    editMessageActions: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 12,
+    },
+    editMessageButton: {
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        borderRadius: 8,
+        minWidth: 80,
+        alignItems: 'center',
+    },
+    cancelButton: {
+        backgroundColor: '#f5f5f5',
+    },
+    saveButton: {
+        backgroundColor: '#992C55',
+    },
+    cancelButtonText: {
+        color: '#666',
+        fontWeight: '500',
+    },
+    saveButtonText: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+
+    // Message highlighting for reply navigation
+    highlightedMessage: {
+        backgroundColor: '#FFE4B5', // Light orange highlight
+        borderWidth: 2,
+        borderColor: '#FFA500', // Orange border
+        transform: [{ scale: 1.02 }], // Slight scale up
     },
 
 

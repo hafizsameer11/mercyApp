@@ -19,6 +19,10 @@ const API = {
   GET_ALL_CHATS: `${BASE_URL}/chats`,
   GET_QUESTIONNAIRE: `${BASE_URL}/admin/questionnaire`,
   ASSIGN_QUESTIONNAIRE: `${BASE_URL}/questionnaire/assign`,
+  DELETE_MESSAGE: (messageId) => `${BASE_URL}/delete-message/${messageId}`,
+  EDIT_MESSAGE: (messageId) => `${BASE_URL}/edit-message/${messageId}`,
+  DOWNLOADED: (messageId) => `${BASE_URL}/downloaded/${messageId}`,
+  DELETE_CHAT: (chatId) => `${BASE_URL}/delete-chat/${chatId}`,
 
 
 

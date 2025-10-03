@@ -528,6 +528,59 @@ const ChatScreen = () => {
     }
   };
 
+  // Delete chat function
+  const deleteChat = async (chatId) => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        alert('You must be logged in.');
+        return;
+      }
+
+      const response = await axios.post(
+        API.DELETE_CHAT(chatId),
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (response.data.status === 'success') {
+        // Refresh the chat list
+        queryClient.invalidateQueries({ queryKey: ['chats'] });
+        alert('Chat deleted successfully.');
+      } else {
+        alert('Failed to delete chat.');
+      }
+    } catch (error) {
+      console.error('Error deleting chat:', error);
+      alert('Failed to delete chat. Please try again.');
+    }
+  };
+
+  // Show delete confirmation dialog
+  const showDeleteConfirmation = (chat) => {
+    Alert.alert(
+      'Delete Chat',
+      'Are you sure you want to delete this chat? This action cannot be undone and will delete all messages in this chat.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => deleteChat(chat.id),
+        },
+      ]
+    );
+  };
+
   // ---------- render ----------
   return (
     <View style={styles.container}>
@@ -654,7 +707,7 @@ const ChatScreen = () => {
             <TouchableOpacity
               key={chat.id}
               style={styles.chatCard}
-              onLongPress={() => userRole === 'support' && openModal(chat)}
+              onLongPress={() => openModal(chat)}
               onPress={() => {
                 navigation.navigate('Chat', {
                   chat_id: chat.id,
@@ -708,26 +761,45 @@ const ChatScreen = () => {
               </TouchableOpacity>
             </View>
 
-            {/* Quick label row (top 3) */}
-            <View style={{ marginTop: 6, marginBottom: 8 }}>
-              <ThemedText style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>Quick label</ThemedText>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {labels.slice(0, 3).map(lab => (
-                  <TouchableOpacity
-                    key={lab.id}
-                    onPress={() => selectedChat && toggleChatLabel(selectedChat.id, lab.id)}
-                    style={{ borderWidth: 1, borderColor: lab.color, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 }}
-                  >
-                    <ThemedText style={{ fontSize: 11, color: '#000' }}>{lab.name}</ThemedText>
-                  </TouchableOpacity>
-                ))}
+            {/* Quick label row (top 3) - Only for support users */}
+            {userDetail?.role === 'support' && (
+              <View style={{ marginTop: 6, marginBottom: 8 }}>
+                <ThemedText style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>Quick label</ThemedText>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {labels.slice(0, 3).map(lab => (
+                    <TouchableOpacity
+                      key={lab.id}
+                      onPress={() => selectedChat && toggleChatLabel(selectedChat.id, lab.id)}
+                      style={{ borderWidth: 1, borderColor: lab.color, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 }}
+                    >
+                      <ThemedText style={{ fontSize: 11, color: '#000' }}>{lab.name}</ThemedText>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
-            </View>
+            )}
 
-            <TouchableOpacity style={styles.optionsItem} onPress={() => setLabelModalVisible(true)}>
-              <Ionicons name="pricetags-outline" size={18} color="#000" style={{ marginRight: 10 }} />
-              <ThemedText style={styles.optionsItemText}>Labels</ThemedText>
-            </TouchableOpacity>
+            {/* Labels option - Only for support users */}
+            {userDetail?.role === 'support' && (
+              <TouchableOpacity style={styles.optionsItem} onPress={() => setLabelModalVisible(true)}>
+                <Ionicons name="pricetags-outline" size={18} color="#000" style={{ marginRight: 10 }} />
+                <ThemedText style={styles.optionsItemText}>Labels</ThemedText>
+              </TouchableOpacity>
+            )}
+
+            {/* Delete Chat Option - Only for regular users */}
+            {userDetail?.role === 'user' && (
+              <TouchableOpacity 
+                style={[styles.optionsItem, { borderTopWidth: 1, borderTopColor: '#eee', marginTop: 8, paddingTop: 12 }]} 
+                onPress={() => {
+                  closeModal();
+                  showDeleteConfirmation(selectedChat);
+                }}
+              >
+                <Ionicons name="trash-outline" size={18} color="#ff4444" style={{ marginRight: 10 }} />
+                <ThemedText style={[styles.optionsItemText, { color: '#ff4444' }]}>Delete Chat</ThemedText>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
