@@ -15,10 +15,14 @@ import submitAnswers from '../config/submitAnswers';
 
 const { width } = Dimensions.get('window');
 
-const CategoryOneModal = ({ visible, onClose, onNext, chat_id, user_id, onSaved }) => {
-    const category = questionnaireData[0]; // First category: Face
-    const [selectedOption, setSelectedOption] = useState(null);
-    console.log("chat_id", chat_id, "user_id", user_id,"in cateogy model one")
+const CategoryOneModal = ({ visible, onClose, onNext, chat_id, user_id, onSaved, category, viewOnly = false, userAnswers = {} }) => {
+    // Use passed category prop, or fallback to hardcoded data
+    const categoryData = category || questionnaireData[0]; // First category: Face
+    
+    // Pre-fill with user's answer if viewing as agent
+    const [selectedOption, setSelectedOption] = useState(userAnswers.selectedFace || null);
+    
+    console.log("chat_id", chat_id, "user_id", user_id, "in category model one", "viewOnly:", viewOnly, "userAnswers:", userAnswers)
 
     return (
         <Modal visible={visible} animationType="slide" transparent>
@@ -45,23 +49,30 @@ const CategoryOneModal = ({ visible, onClose, onNext, chat_id, user_id, onSaved 
                         <View style={styles.cardHeader}>
                             <ThemedText style={styles.circle}>1</ThemedText>
                             <View>
-                                <ThemedText style={styles.cardTitle}>{category.title}</ThemedText>
+                                <ThemedText style={styles.cardTitle}>{categoryData.title}</ThemedText>
                                 <ThemedText style={styles.cardSubtitle}>
-                                    {category.description}
+                                    {categoryData.description}
                                 </ThemedText>
                             </View>
                         </View>
                         <View style={{ backgroundColor: "#fff", padding: 10, borderRadius: 10, zIndex: 1, marginTop: -25, elevation: 1 }}>
                             {/* Options */}
-                            {category.questions[0]?.options?.map((option, idx) => (
+                            {viewOnly && !selectedOption && (
+                                <ThemedText style={{ padding: 10, textAlign: 'center', color: '#999' }}>
+                                    No answer submitted yet
+                                </ThemedText>
+                            )}
+                            {categoryData.questions[0]?.options?.map((option, idx) => (
 
                                 <TouchableOpacity
                                     key={idx}
                                     style={[
                                         styles.option,
                                         selectedOption === option && styles.optionSelected,
+                                        viewOnly && { opacity: 0.8 }
                                     ]}
-                                    onPress={() => setSelectedOption(option)}
+                                    onPress={() => !viewOnly && setSelectedOption(option)}
+                                    disabled={viewOnly}
                                 >
                                     <ThemedText
                                         style={[
@@ -81,21 +92,30 @@ const CategoryOneModal = ({ visible, onClose, onNext, chat_id, user_id, onSaved 
                         <TouchableOpacity onPress={onClose} style={styles.footerBtnGray}>
                             <ThemedText style={styles.footerBtnText}>Close</ThemedText>
                         </TouchableOpacity>
-                        <TouchableOpacity
-                            onPress={async () => {
-                                const answers = { selectedFace: selectedOption };
-                                const result = await submitAnswers(chat_id, user_id, answers);
-                                console.log('Submit Answers Result:', result.status);
-                                if (result.status == 'success') {
-                                    onNext();
-                                    console.log('Answers submitted successfully');
-                                    onSaved(answers); // accumulate answers in parent if needed
-                                }
-                            }}
-                            style={styles.footerBtnPink}
-                        >
-                            <ThemedText style={styles.footerBtnText}>Next</ThemedText>
-                        </TouchableOpacity>
+                        {viewOnly ? (
+                            <TouchableOpacity
+                                onPress={onNext}
+                                style={styles.footerBtnPink}
+                            >
+                                <ThemedText style={styles.footerBtnText}>Next Section</ThemedText>
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity
+                                onPress={async () => {
+                                    const answers = { selectedFace: selectedOption };
+                                    const result = await submitAnswers(chat_id, user_id, answers);
+                                    console.log('Submit Answers Result:', result.status);
+                                    if (result.status == 'success') {
+                                        onNext();
+                                        console.log('Answers submitted successfully');
+                                        onSaved(answers); // accumulate answers in parent if needed
+                                    }
+                                }}
+                                style={styles.footerBtnPink}
+                            >
+                                <ThemedText style={styles.footerBtnText}>Next</ThemedText>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
             </View>
@@ -217,19 +237,21 @@ const styles = StyleSheet.create({
         justifyContent: 'space-around',
     },
     footerBtnGray: {
-        paddingVertical: 14,
-        paddingHorizontal: 60,
+        paddingVertical: 10,
+        paddingHorizontal: 40,
         backgroundColor: '#ddd',
-        borderRadius: 30,
+        borderRadius: 20,
     },
     footerBtnPink: {
-        paddingVertical: 14,
-        paddingHorizontal: 60,
+        paddingVertical: 10,
+        paddingHorizontal: 40,
         backgroundColor: '#992c55',
-        borderRadius: 30,
+        borderRadius: 20,
     },
     footerBtnText: {
         color: '#fff',
         fontWeight: '600',
+        fontSize: 13,
+        textAlign: 'center',
     },
 });

@@ -7,13 +7,15 @@
     "icon": "./assets/logo.jpg",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "ebmercy",
     "splash": {
       "image": "./assets/logo.jpg",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hmstech11.mercynative"
     },
     "android": {
       "googleServicesFile": "./google-service.json",
@@ -21,6 +23,7 @@
         "foregroundImage": "./assets/logo.jpg",
         "backgroundColor": "#ffffff"
       },
+      "softInputMode": "adjustResize",
       "edgeToEdgeEnabled": true,
       "permissions": [
         "android.permission.RECORD_AUDIO",

@@ -28,7 +28,11 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import API from '../../config/api.config';
 import * as AuthSession from 'expo-auth-session';
+import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+
+// Complete auth session for Expo Web Browser
+WebBrowser.maybeCompleteAuthSession();
 
 const LoginScreen = () => {
   const navigation = useNavigation();
@@ -41,6 +45,15 @@ const LoginScreen = () => {
 
   // loading flag for "loggining....."
   const [isLoading, setIsLoading] = useState(false);
+
+
+  // Google Auth hook - for development build
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    expoClientId: '735121439507-793fqpbr7nh3k8tnh79pgbmf2sfitkhj.apps.googleusercontent.com',
+    iosClientId: '735121439507-793fqpbr7nh3k8tnh79pgbmf2sfitkhj.apps.googleusercontent.com',
+    androidClientId: '735121439507-4vkrabi0rqt19o7kujioma7pf5eu6omt.apps.googleusercontent.com',
+    webClientId: '735121439507-793fqpbr7nh3k8tnh79pgbmf2sfitkhj.apps.googleusercontent.com',
+  });
 
   // toast/alert helper (Android toast, iOS alert)
   const notify = (title, message) => {
@@ -97,90 +110,72 @@ const LoginScreen = () => {
     }
   };
 
+  // Handle Google auth response
+  React.useEffect(() => {
+    if (response?.type === 'success') {
+      const { authentication } = response;
+      handleGoogleSuccess(authentication);
+    }
+  }, [response]);
+
   // Google Authentication
   const handleGoogleAuth = async () => {
     try {
       setIsLoading(true);
+      await promptAsync();
+    } catch (error) {
+      console.error('Google auth error:', error);
+      notify('Login failed', 'Failed to open Google login');
+      setIsLoading(false);
+    }
+  };
 
-      // Configure Google OAuth
-      const redirectUri = AuthSession.makeRedirectUri({
-        useProxy: true,
-      });
+  const handleGoogleSuccess = async (authentication) => {
+    try {
+      const accessToken = authentication?.accessToken || authentication?.idToken;
+      
+      console.log('Access token:', accessToken ? 'Received' : 'Not received');
 
-      console.log('Redirect URI:', redirectUri);
-
-      const request = new AuthSession.AuthRequest({
-        clientId: '735121439507-793fqpbr7nh3k8tnh79pgbmf2sfitkhj.apps.googleusercontent.com',
-        scopes: ['openid', 'profile', 'email'],
-        redirectUri,
-        responseType: AuthSession.ResponseType.Code,
-        extraParams: {
-          access_type: 'offline',
-          prompt: 'consent',
+      if (!accessToken) {
+        throw new Error('No access token received from Google');
+      }
+      
+      // Send access token to backend
+      const response = await axios.post(
+        API.SOCIAL_AUTH('google'),
+        {
+          access_token: accessToken,
         },
-      });
-
-      const result = await request.promptAsync({
-        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-      });
-
-      console.log('Auth result:', result);
-
-      if (result.type === 'success') {
-        const { code } = result.params;
-        
-        console.log('Authorization code received:', code);
-        
-        // Exchange code for access token
-        const tokenResponse = await AuthSession.exchangeCodeAsync(
-          {
-            clientId: '735121439507-793fqpbr7nh3k8tnh79pgbmf2sfitkhj.apps.googleusercontent.com',
-            code,
-            redirectUri,
-            extraParams: {},
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
           },
-          {
-            tokenEndpoint: 'https://oauth2.googleapis.com/token',
-          }
-        );
-
-        console.log('Token response:', tokenResponse);
-        const { accessToken } = tokenResponse;
-        
-        // Send access token to your backend
-        const response = await axios.post(
-          API.SOCIAL_AUTH('google'),
-          {
-            access_token: accessToken,
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              Accept: 'application/json',
-            },
-          }
-        );
-
-        console.log('Backend response:', response.data);
-
-        if (response.data.status) {
-          // Store token and user data
-          await AsyncStorage.setItem('token', response.data.token);
-          await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
-          
-          notify('Success', 'Login successful!');
-          navigation.navigate('Main');
-        } else {
-          notify('Login failed', 'Authentication failed');
+          timeout: 20000,
         }
-      } else if (result.type === 'cancel') {
-        notify('Login cancelled', 'Authentication cancelled');
+      );
+
+      console.log('Backend response:', response.data);
+
+      if (response.data && (response.data.status || response.data.token)) {
+        // Store token and user data
+        const token = response.data.token || response.data.access_token;
+        const user = response.data.user || response.data.data?.user;
+        
+        await AsyncStorage.setItem('token', token);
+        if (user) {
+          await AsyncStorage.setItem('user', JSON.stringify(user));
+        }
+        
+        notify('Success', 'Login successful!');
+        navigation.navigate('Main');
       } else {
-        notify('Login failed', 'Authentication failed');
+        notify('Login failed', response.data?.message || 'Authentication failed');
       }
     } catch (error) {
       console.error('Google auth error:', error);
-      notify('Login failed', 'Authentication failed. Please try again.');
+      const errorMessage = error.response?.data?.message || error.message || 'Authentication failed';
+      notify('Login failed', `Error: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -227,7 +222,8 @@ const LoginScreen = () => {
                 </ThemedText>
 
                 <View style={styles.card}>
-                  <View style={styles.socialRow}>
+                  {/* Social buttons - Commented out for now, will work on later */}
+                  {/* <View style={styles.socialRow}>
                     <TouchableOpacity
                       style={[styles.socialButton, { flexDirection: 'row', alignItems: 'center' }]}
                       disabled={isLoading}
@@ -247,7 +243,7 @@ const LoginScreen = () => {
 
                   <ThemedText style={{ marginTop: 10, color: '#B7B7B9', textAlign: 'center' }}>
                     _________or continue with_________
-                  </ThemedText>
+                  </ThemedText> */}
 
                   <Text style={styles.label}>Email</Text>
                   <View style={[styles.inputWrapper, isEmailFocused && { borderColor: '#992C55' }]}>

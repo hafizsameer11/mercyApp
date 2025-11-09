@@ -13,23 +13,33 @@ import submitAnswers from '../config/submitAnswers';
 
 const { width } = Dimensions.get('window');
 
-const CategoryTwoModal = ({ visible, onClose, onNext, onPrevious, chat_id, user_id, onSaved }) => {
-  const category = questionnaireData[1]; // Skin category
+const CategoryTwoModal = ({ visible, onClose, onNext, onPrevious, chat_id, user_id, onSaved, category, viewOnly = false, userAnswers = {} }) => {
+  // Use passed category prop, or fallback to hardcoded data
+  const categoryData = category || questionnaireData[1]; // Skin category
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState({});
-  const questions = category.questions;
+  // Pre-fill with user's answers if viewing as agent
+  const [answers, setAnswers] = useState(userAnswers);
+  const questions = categoryData.questions;
   const currentQuestion = questions[currentIndex];
   const progress = ((currentIndex + 1) / questions.length) * 100;
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  console.log("chat_id", chat_id, "user_id", user_id, "in cateogy model two")
+  console.log("chat_id", chat_id, "user_id", user_id, "in category model two", "viewOnly:", viewOnly, "userAnswers:", userAnswers)
 
   const handleSelect = (key, value) => {
-    setAnswers((prev) => ({ ...prev, [key]: value }));
+    if (!viewOnly) {
+      setAnswers((prev) => ({ ...prev, [key]: value }));
+    }
   };
 
   const handleNext = async () => {
     if (isSubmitting) return; // prevent double-taps
+
+    // If viewing only, just navigate to next section
+    if (viewOnly) {
+      onNext();
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -92,8 +102,8 @@ const CategoryTwoModal = ({ visible, onClose, onNext, onPrevious, chat_id, user_
             <View style={styles.cardHeader}>
               <ThemedText style={styles.circle}>2</ThemedText>
               <View>
-                <ThemedText style={styles.cardTitle}>{category.title}</ThemedText>
-                <ThemedText style={styles.cardSubtitle}>{category.description}</ThemedText>
+                <ThemedText style={styles.cardTitle}>{categoryData.title}</ThemedText>
+                <ThemedText style={styles.cardSubtitle}>{categoryData.description}</ThemedText>
               </View>
             </View>
 
@@ -104,8 +114,13 @@ const CategoryTwoModal = ({ visible, onClose, onNext, onPrevious, chat_id, user_
                   <View key={index} style={{ marginBottom: 15 }}>
                     {question.type === 'toggle' && (
                       <TouchableOpacity
-                        style={[styles.option, selected && styles.optionSelected]}
+                        style={[
+                          styles.option, 
+                          selected && styles.optionSelected,
+                          viewOnly && { opacity: 0.8 }
+                        ]}
                         onPress={() => handleSelect(question.stateKey, !selected)}
+                        disabled={viewOnly}
                       >
                         <ThemedText style={[styles.optionText, selected && styles.optionTextSelected]}>
                           {question.label}
@@ -119,8 +134,13 @@ const CategoryTwoModal = ({ visible, onClose, onNext, onPrevious, chat_id, user_
                         {question.options.map((option, idx) => (
                           <TouchableOpacity
                             key={idx}
-                            style={[styles.option, selected === option && styles.optionSelected]}
+                            style={[
+                              styles.option, 
+                              selected === option && styles.optionSelected,
+                              viewOnly && { opacity: 0.8 }
+                            ]}
                             onPress={() => handleSelect(question.stateKey, option)}
+                            disabled={viewOnly}
                           >
                             <ThemedText style={[styles.optionText, selected === option && styles.optionTextSelected]}>
                               {option}
@@ -139,7 +159,7 @@ const CategoryTwoModal = ({ visible, onClose, onNext, onPrevious, chat_id, user_
           {/* Footer */}
           <View style={styles.footer}>
             <TouchableOpacity onPress={handlePrevious} style={styles.footerBtnGray}>
-              <ThemedText style={styles.footerBtnText}>Previous</ThemedText>
+              <ThemedText style={styles.footerBtnText}>{viewOnly ? 'Previous Section' : 'Previous'}</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleNext}
@@ -147,7 +167,7 @@ const CategoryTwoModal = ({ visible, onClose, onNext, onPrevious, chat_id, user_
               disabled={isSubmitting}
             >
               <ThemedText style={styles.footerBtnText}>
-                {isSubmitting ? 'Submitting...' : 'Next'}
+                {viewOnly ? 'Next Section' : (isSubmitting ? 'Submitting...' : 'Next')}
               </ThemedText>
             </TouchableOpacity>
 
@@ -268,21 +288,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
   },
   footerBtnGray: {
-    paddingVertical: 14,
-    paddingHorizontal: 60,
+    paddingVertical: 10,
+    paddingHorizontal: 40,
     backgroundColor: '#ddd',
-    borderRadius: 30,
+    borderRadius: 20,
 
   },
   footerBtnPink: {
-    paddingVertical: 14,
-    paddingHorizontal: 70,
+    paddingVertical: 10,
+    paddingHorizontal: 40,
     backgroundColor: '#992c55',
-    borderRadius: 30,
+    borderRadius: 20,
 
   },
   footerBtnText: {
     color: '#fff',
     fontWeight: '600',
+    fontSize: 13,
+    textAlign: 'center',
   },
 });

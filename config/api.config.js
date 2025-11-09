@@ -24,10 +24,17 @@ const API = {
   DOWNLOADED: (messageId) => `${BASE_URL}/downloaded/${messageId}`,
   DELETE_CHAT: (chatId) => `${BASE_URL}/delete-chat/${chatId}`,
   SOCIAL_AUTH: (provider) => `${BASE_URL}/auth/social/${provider}`,
-
-
-
-
+  
+  // Questionnaire endpoints
+  GET_ALL_QUESTIONNAIRES: `${BASE_URL}/questionnaire/all`,
+  QUESTIONNAIRE_PROGRESS: (chatId) => `${BASE_URL}/questionnaire/progress/${chatId}`,
+  SAVE_QUESTIONNAIRE_ANSWER: `${BASE_URL}/questionnaire/save-answer`,
+  GET_QUESTIONNAIRE_ANSWERS: (chatId) => `${BASE_URL}/questionnaire/answers/${chatId}`,
+  
+  // Online Status endpoints
+  USER_ONLINE_STATUS: (userId) => `${BASE_URL}/user/${userId}/online-status`,
+  USERS_ONLINE_STATUS: `${BASE_URL}/users/online-status`,
+  HEARTBEAT: `${BASE_URL}/heartbeat`,
 };
 
 export default API;

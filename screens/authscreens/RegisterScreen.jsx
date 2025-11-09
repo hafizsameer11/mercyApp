@@ -18,6 +18,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import * as AuthSession from 'expo-auth-session';
+import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -29,6 +30,9 @@ import logo from '../../assets/logo.png';
 import icon from '../../assets/Img.png';
 import google from '../../assets/google.png';
 import facebook from '../../assets/facebook.png';
+
+// Complete auth session for Expo Web Browser
+WebBrowser.maybeCompleteAuthSession();
 
 const RegisterScreen = () => {
   const navigation = useNavigation();
@@ -45,6 +49,15 @@ const RegisterScreen = () => {
 
   // focus states (visual only)
   const [focus, setFocus] = useState({ user: false, email: false, phone: false, pass: false });
+
+  // Google Auth hook - use web client for Expo Go testing
+  // Android client will be used automatically when you build standalone APK with EAS
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    expoClientId: '735121439507-793fqpbr7nh3k8tnh79pgbmf2sfitkhj.apps.googleusercontent.com',
+    iosClientId: '735121439507-793fqpbr7nh3k8tnh79pgbmf2sfitkhj.apps.googleusercontent.com',
+    androidClientId: '735121439507-793fqpbr7nh3k8tnh79pgbmf2sfitkhj.apps.googleusercontent.com', // Use web client for Expo Go
+    webClientId: '735121439507-793fqpbr7nh3k8tnh79pgbmf2sfitkhj.apps.googleusercontent.com',
+  });
 
   const showToast = (msg) => {
     if (Platform.OS === 'android') {
@@ -146,95 +159,76 @@ const RegisterScreen = () => {
     }
   };
 
+  // Handle Google auth response
+  React.useEffect(() => {
+    if (response?.type === 'success') {
+      const { authentication } = response;
+      handleGoogleSuccess(authentication);
+    }
+  }, [response]);
+
   // Google Authentication
   const handleGoogleAuth = async () => {
     try {
       setLoading(true);
+      await promptAsync();
+    } catch (error) {
+      console.error('Google auth error:', error);
+      showToast('Failed to open Google login');
+      setLoading(false);
+    }
+  };
 
-      // Use Expo's built-in Google authentication
-      const redirectUri = AuthSession.makeRedirectUri({
-        useProxy: true,
-      });
+  const handleGoogleSuccess = async (authentication) => {
+    try {
+      const accessToken = authentication?.accessToken || authentication?.idToken;
+      
+      console.log('Access token:', accessToken ? 'Received' : 'Not received');
 
-      console.log('Redirect URI:', redirectUri);
-
-      // Create a more compatible request
-      const request = new AuthSession.AuthRequest({
-        clientId: '735121439507-793fqpbr7nh3k8tnh79pgbmf2sfitkhj.apps.googleusercontent.com',
-        scopes: ['openid', 'profile', 'email'],
-        redirectUri,
-        responseType: AuthSession.ResponseType.Code,
-        extraParams: {
-          access_type: 'offline',
-          prompt: 'consent',
+      if (!accessToken) {
+        throw new Error('No access token received from Google');
+      }
+      
+      // Send access token to backend
+      const response = await axios.post(
+        API.SOCIAL_AUTH('google'),
+        {
+          access_token: accessToken,
         },
-      });
-
-      const result = await request.promptAsync({
-        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-      });
-
-      console.log('Auth result:', result);
-
-      if (result.type === 'success') {
-        const { code } = result.params;
-        
-        console.log('Authorization code received:', code);
-        
-        // Exchange code for access token
-        const tokenResponse = await AuthSession.exchangeCodeAsync(
-          {
-            clientId: '735121439507-793fqpbr7nh3k8tnh79pgbmf2sfitkhj.apps.googleusercontent.com',
-            code,
-            redirectUri,
-            extraParams: {},
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
           },
-          {
-            tokenEndpoint: 'https://oauth2.googleapis.com/token',
-          }
-        );
-
-        console.log('Token response:', tokenResponse);
-        const { accessToken } = tokenResponse;
-        
-        // Send access token to your backend
-        const response = await axios.post(
-          API.SOCIAL_AUTH('google'),
-          {
-            access_token: accessToken,
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              Accept: 'application/json',
-            },
-          }
-        );
-
-        console.log('Backend response:', response.data);
-
-        if (response.data.status) {
-          // Store token and user data
-          await AsyncStorage.setItem('token', response.data.token);
-          await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
-          
-          showToast('Login successful!');
-          // Navigate to main app
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Main' }],
-          });
-        } else {
-          showToast('Authentication failed');
+          timeout: 20000,
         }
-      } else if (result.type === 'cancel') {
-        showToast('Authentication cancelled');
+      );
+
+      console.log('Backend response:', response.data);
+
+      if (response.data && (response.data.status || response.data.token)) {
+        // Store token and user data
+        const token = response.data.token || response.data.access_token;
+        const user = response.data.user || response.data.data?.user;
+        
+        await AsyncStorage.setItem('token', token);
+        if (user) {
+          await AsyncStorage.setItem('user', JSON.stringify(user));
+        }
+        
+        showToast('Login successful!');
+        // Navigate to main app
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Main' }],
+        });
       } else {
-        showToast('Authentication failed');
+        showToast(response.data?.message || 'Authentication failed');
       }
     } catch (error) {
       console.error('Google auth error:', error);
-      showToast('Authentication failed. Please try again.');
+      const errorMessage = error.response?.data?.message || error.message || 'Authentication failed';
+      showToast(`Error: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -261,8 +255,8 @@ const RegisterScreen = () => {
 
         {/* Card */}
         <View style={styles.card}>
-          {/* Social buttons */}
-          <View style={styles.socialRow}>
+          {/* Social buttons - Commented out for now, will work on later */}
+          {/* <View style={styles.socialRow}>
             <TouchableOpacity
               style={[styles.socialButton, { flexDirection: 'row', alignItems: 'center' }]}
               disabled={loading}
@@ -282,7 +276,7 @@ const RegisterScreen = () => {
 
           <ThemedText style={{ marginTop: 10, color: '#B7B7B9', textAlign: 'center' }}>
             _________or continue with_________
-          </ThemedText>
+          </ThemedText> */}
 
           {/* Username */}
           <ThemedText style={styles.label}>Username</ThemedText>

@@ -14,16 +14,22 @@ import submitAnswers from '../config/submitAnswers';
 
 const { width } = Dimensions.get('window');
 
-const CategoryThreeModal = ({ visible, onClose, onDone, onPrevious, chat_id, user_id }) => {
-  const category = questionnaireData[2];
-  const questions = category.questions;
+const CategoryThreeModal = ({ visible, onClose, onDone, onPrevious, chat_id, user_id, category, viewOnly = false, userAnswers = {} }) => {
+  // Use passed category prop, or fallback to hardcoded data
+  const categoryData = category || questionnaireData[2];
+  const questions = categoryData.questions;
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState({});
+  // Pre-fill with user's answers if viewing as agent
+  const [answers, setAnswers] = useState(userAnswers);
 
   const currentQuestion = questions[currentIndex];
+  
+  console.log("chat_id", chat_id, "user_id", user_id, "in category model three", "viewOnly:", viewOnly, "userAnswers:", userAnswers)
 
   const handleChange = (value) => {
-    setAnswers({ ...answers, [currentQuestion.stateKey]: value });
+    if (!viewOnly) {
+      setAnswers({ ...answers, [currentQuestion.stateKey]: value });
+    }
   };
 
   const handleOptionPress = (option) => {
@@ -34,6 +40,12 @@ const CategoryThreeModal = ({ visible, onClose, onDone, onPrevious, chat_id, use
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
+      // If viewing only, just close without submitting
+      if (viewOnly) {
+        onDone();
+        return;
+      }
+      
       const result = await submitAnswers(chat_id, user_id, answers);
       if (result.status === 'success') {
         onDone(); // Close modal or show completion
@@ -79,7 +91,7 @@ const CategoryThreeModal = ({ visible, onClose, onDone, onPrevious, chat_id, use
             <View style={styles.cardHeader}>
               <ThemedText style={styles.circle}>3</ThemedText>
               <View>
-                <ThemedText style={styles.cardTitle}>{category.title}</ThemedText>
+                <ThemedText style={styles.cardTitle}>{categoryData.title}</ThemedText>
                 <ThemedText style={styles.cardSubtitle}>This part is split into 9 sections, you can skip unrelated parts</ThemedText>
               </View>
             </View>
@@ -90,10 +102,11 @@ const CategoryThreeModal = ({ visible, onClose, onDone, onPrevious, chat_id, use
                 <View style={{ backgroundColor: "#F5EAEE", borderRadius: 10, marginTop: 10, padding: 12 }}>
                   <TextInput
                     multiline
-                    placeholder="Specify your details"
-                    style={styles.textInput}
+                    placeholder={viewOnly ? "No answer provided" : "Specify your details"}
+                    style={[styles.textInput, viewOnly && { opacity: 0.8 }]}
                     value={answers[currentQuestion.stateKey] || ''}
                     onChangeText={handleChange}
+                    editable={!viewOnly}
                   />
                 </View>
               ) : (
@@ -102,9 +115,11 @@ const CategoryThreeModal = ({ visible, onClose, onDone, onPrevious, chat_id, use
                     key={idx}
                     style={[
                       styles.option,
-                      answers[currentQuestion.stateKey] === option && styles.optionSelected
+                      answers[currentQuestion.stateKey] === option && styles.optionSelected,
+                      viewOnly && { opacity: 0.8 }
                     ]}
                     onPress={() => handleOptionPress(option)}
+                    disabled={viewOnly}
                   >
                     <ThemedText
                       style={[
@@ -123,11 +138,14 @@ const CategoryThreeModal = ({ visible, onClose, onDone, onPrevious, chat_id, use
           {/* Footer */}
           <View style={styles.footer}>
             <TouchableOpacity onPress={handlePrevious} style={styles.footerBtnGray}>
-              <ThemedText style={styles.footerBtnText}>Previous</ThemedText>
+              <ThemedText style={styles.footerBtnText}>{viewOnly ? 'Previous Section' : 'Previous'}</ThemedText>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleNext} style={styles.footerBtnPink}>
               <ThemedText style={styles.footerBtnText}>
-                {currentIndex === questions.length - 1 ? 'Done' : 'Next'}
+                {viewOnly 
+                  ? (currentIndex === questions.length - 1 ? 'Close' : 'Next') 
+                  : (currentIndex === questions.length - 1 ? 'Done' : 'Next')
+                }
               </ThemedText>
             </TouchableOpacity>
           </View>
@@ -251,19 +269,21 @@ const styles = StyleSheet.create({
         justifyContent: 'space-around',
     },
     footerBtnGray: {
-        paddingVertical: 12,
-        paddingHorizontal: 60,
+        paddingVertical: 10,
+        paddingHorizontal: 40,
         backgroundColor: '#ddd',
-        borderRadius: 30,
+        borderRadius: 20,
     },
     footerBtnPink: {
-        paddingVertical: 12,
-        paddingHorizontal: 60,
+        paddingVertical: 10,
+        paddingHorizontal: 40,
         backgroundColor: '#992c55',
-        borderRadius: 30,
+        borderRadius: 20,
     },
     footerBtnText: {
         color: '#fff',
         fontWeight: '600',
+        fontSize: 13,
+        textAlign: 'center',
     },
 });

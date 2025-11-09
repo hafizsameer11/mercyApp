@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import questionnaireData from './questionnaireData';
+import questionnaireData from './questionnaireData'; // Fallback data
+import { fetchQuestionnaires } from '../../../services/questionnaireService';
 import EmojiSelector from 'react-native-emoji-selector';
 import { RecordingButton } from '../../../components/RecordingButton';
 import VoiceRecorderModal from '../../../components/VoiceRecorderModal';
@@ -20,6 +21,10 @@ import * as Sharing from 'expo-sharing';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Mime from 'react-native-mime-types';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import useUserOnlineStatus from '../../../hooks/useUserOnlineStatus';
+import useHeartbeat from '../../../hooks/useHeartbeat';
+import OnlineIndicator from '../../../components/OnlineIndicator';
+import LastSeenText from '../../../components/LastSeenText';
 
 import {
     View,
@@ -158,10 +163,61 @@ const ChatScreen = () => {
 
     const [currentCategoryIndex, setCurrentCategoryIndex] = useState(0);
     const [questionnaireVisible, setQuestionnaireVisible] = useState(false);
+    const [viewingAsAgent, setViewingAsAgent] = useState(false); // Agent viewing user's answers
+    const [userAnswers, setUserAnswers] = useState({}); // Store fetched user answers
+    
+    // Dynamic questionnaire data (fetched from backend)
+    const [dynamicQuestionnaireData, setDynamicQuestionnaireData] = useState(questionnaireData); // Use hardcoded as fallback
 
     const navigation = useNavigation();
     const { agent, service, messages: initialMessages = [] } = useRoute().params;
     const [userRole, setUserRole] = useState('');
+
+    // Online status hooks - Track other user's status and keep current user online
+    // Determine the other user's ID based on role
+    // NOTE: "agent" param actually contains the OTHER person's details (customer OR agent you're chatting with)
+    const otherUserId = useMemo(() => {
+        console.log('👤 Determining Other User ID...');
+        console.log('📦 Order Details:', orderDetails);
+        console.log('👨‍💼 Agent/Other User from params:', agent);
+        console.log('👤 Current User:', user);
+        console.log('🎭 Current User Role:', userRole);
+        
+        // If current user is support/agent, they want to see the customer's status
+        // Use agent.id from route params first (it's actually the customer ID), then confirm with orderDetails
+        if (userRole === 'support') {
+            const customerId = orderDetails?.user_id || agent?.id;
+            console.log('✅ Agent viewing customer - Using customer ID:', customerId, 
+                       `(source: ${orderDetails?.user_id ? 'orderDetails' : 'route params'})`);
+            return customerId;
+        }
+        
+        // If current user is customer, they want to see the agent's status
+        // Use agent.id from route params first (it's the actual agent ID), then confirm with orderDetails
+        if (userRole === 'user') {
+            const agentId = orderDetails?.support_agent_id || agent?.id;
+            console.log('✅ Customer viewing agent - Using agent ID:', agentId, 
+                       `(source: ${orderDetails?.support_agent_id ? 'orderDetails' : 'route params'})`);
+            return agentId;
+        }
+        
+        // Fallback if role not yet determined - use agent.id from params or try order details
+        const fallbackId = agent?.id || orderDetails?.user_id || orderDetails?.support_agent_id;
+        console.log('⚠️ Role not determined yet, using fallback ID:', fallbackId);
+        return fallbackId;
+    }, [orderDetails, userRole, user, agent?.id]);
+    
+    const { status: otherUserStatus, loading: statusLoading } = useUserOnlineStatus(otherUserId, 15000); // Refresh every 15 seconds
+    useHeartbeat(true, 120000); // Send heartbeat every 2 minutes to keep current user online
+
+    // Debug: Log when online status changes
+    useEffect(() => {
+        console.log('🔴 Online Status Update:', {
+            loading: statusLoading,
+            status: otherUserStatus,
+            userId: otherUserId
+        });
+    }, [otherUserStatus, statusLoading, otherUserId]);
 
     const [messages, setMessages] = useState(initialMessages.length > 0 ? initialMessages : []);
     const messagesRef = useRef([]);
@@ -213,6 +269,20 @@ const ChatScreen = () => {
     };
 
     // one-time jump after first load (after interactions/layout settle)
+    // Fetch questionnaires from backend on mount
+    useEffect(() => {
+        const loadQuestionnaires = async () => {
+            const data = await fetchQuestionnaires();
+            if (data && data.length > 0) {
+                console.log('✅ Using dynamic questionnaires from backend');
+                setDynamicQuestionnaireData(data);
+            } else {
+                console.log('⚠️ Using fallback hardcoded questionnaires');
+            }
+        };
+        loadQuestionnaires();
+    }, []);
+
     useEffect(() => {
         if (isMessagesLoading || didInitialAutoScrollRef.current || !messages.length) return;
         InteractionManager.runAfterInteractions(() => {
@@ -636,7 +706,7 @@ const formatNaira = (v) => {
             // console.log('Fetched messages:', data?.d);
             if (data?.status !== 'success') return { order: null, messages: [] };
             const fetchedMessages = data?.data?.messages ?? [];
-            console.log('Fetched messages count:', fetchedMessages);
+            // console.log('Fetched messages count:', fetchedMessages);
             const order = data?.data?.order ?? null;
             const formatted = fetchedMessages.map((msg) => ({
                 id: String(msg.id),
@@ -672,6 +742,7 @@ const formatNaira = (v) => {
         const data = messagesQuery.data;
         if (!data) return;
 
+        console.log('📥 Order Details Loaded:', JSON.stringify(data.order, null, 2));
         setOrderDetails(data.order);
 
         setMessages((prev) => {
@@ -1191,16 +1262,75 @@ const formatNaira = (v) => {
                 const res = await axios.get(`${BASE_URL}/questionnaire/progress/${chat_id}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
+                console.log('📊 Progress API Response:', JSON.stringify(res.data, null, 2));
+                
                 if (res?.data?.status === 'success') {
-                    setProgressData(res.data);
+                    // Handle both response formats: direct data or nested in data property
+                    const progressInfo = res.data.data || res.data;
+                    const progressUpdate = {
+                        progress: progressInfo.progress || 0,
+                        completed_sections: progressInfo.completed_sections || 0
+                    };
+                    console.log('📊 Setting Progress Data:', progressUpdate);
+                    setProgressData(progressUpdate);
+                } else {
+                    console.warn('⚠️ Progress API did not return success status');
                 }
             } catch (err) {
-                console.error(`Error fetching progress for chat ${chat_id}`, err);
+                console.error(`❌ Error fetching progress for chat ${chat_id}:`, err.message);
             }
         };
 
-        fetchProgress();
-    }, []);
+        if (chat_id) {
+            fetchProgress();
+        }
+    }, [chat_id]);
+
+    // Function to fetch user's questionnaire answers (for agents to view)
+    const fetchUserAnswers = async () => {
+        try {
+            const token = await AsyncStorage.getItem('token');
+            const res = await axios.get(API.GET_QUESTIONNAIRE_ANSWERS(chat_id), {
+                headers: { 
+                    Authorization: `Bearer ${token}`,
+                    Accept: 'application/json'
+                },
+            });
+            console.log('📋 User Answers Response:', JSON.stringify(res.data, null, 2));
+            
+            if (res?.data?.status === 'success') {
+                const answersData = res.data.data || res.data;
+                setUserAnswers(answersData.answers || {});
+                console.log('📋 Loaded User Answers:', answersData.answers);
+                return answersData.answers || {};
+            } else {
+                console.warn('⚠️ No answers found');
+                return {};
+            }
+        } catch (err) {
+            console.error(`❌ Error fetching user answers for chat ${chat_id}:`, err.message);
+            return {};
+        }
+    };
+
+    // Agent clicks "View Answers" button
+    const handleViewAnswers = async () => {
+        console.log('👁️ Agent viewing user answers...');
+        setViewingAsAgent(true);
+        const answers = await fetchUserAnswers();
+        
+        // Determine which section to start based on progress
+        const completedSections = progressData?.completed_sections || 0;
+        if (completedSections < 1) {
+            setCurrentCategoryIndex(0);
+        } else if (completedSections < 4) {
+            setCurrentCategoryIndex(0); // Start from beginning to show all answers
+        } else {
+            setCurrentCategoryIndex(0); // Always start from first section
+        }
+        
+        setQuestionnaireVisible(true);
+    };
 
     const launchPayment = () => {
         navigation.navigate('FlutterwaveWebView', {
@@ -1603,7 +1733,7 @@ const formatNaira = (v) => {
                                 <ThemedText style={styles.qHeaderTitle}>📋 Questionnaire</ThemedText>
                                 <View style={styles.statusBadge}>
                                     <ThemedText style={styles.statusBadgeText}>
-                                        {progressData.progress === 100 ? 'Completed' : `${progressData.progress}%`}
+                                        {progressData?.progress === 100 ? 'Completed' : `${progressData?.progress || 0}%`}
                                     </ThemedText>
                                 </View>
                             </View>
@@ -1616,10 +1746,11 @@ const formatNaira = (v) => {
                                 <View style={styles.qList}>
                                     {(item.categories?.length ? item.categories : ['Face', 'Skin', 'Change in body size']).map(
                                         (label, i, arr) => {
+                                            const completedSections = progressData?.completed_sections || 0;
                                             const done =
-                                                (i === 0 && progressData.completed_sections >= 1) ||
-                                                (i === 1 && progressData.completed_sections >= 4) ||
-                                                (i === 2 && progressData.completed_sections >= 14);
+                                                (i === 0 && completedSections >= 1) ||
+                                                (i === 1 && completedSections >= 4) ||
+                                                (i === 2 && completedSections >= 14);
 
                                             const isLast = i === arr.length - 1;
 
@@ -1635,13 +1766,14 @@ const formatNaira = (v) => {
                             </View>
 
                             <View style={styles.qBtnRow}>
-                                {user?.role === 'user' && progressData.progress < 100 && (
+                                {user?.role === 'user' && (progressData?.progress || 0) < 100 && (
                                     <TouchableOpacity
                                         style={styles.qStartBtn}
                                         onPress={() => {
-                                            if (progressData.completed_sections < 1) {
+                                            const completedSections = progressData?.completed_sections || 0;
+                                            if (completedSections < 1) {
                                                 setCurrentCategoryIndex(0);
-                                            } else if (progressData.completed_sections < 4) {
+                                            } else if (completedSections < 4) {
                                                 setCurrentCategoryIndex(1);
                                             } else {
                                                 setCurrentCategoryIndex(2);
@@ -1653,12 +1785,27 @@ const formatNaira = (v) => {
                                     </TouchableOpacity>
                                 )}
                                 {user?.role == 'support' && (
-                                    <TouchableOpacity style={styles.qCloseBtn}>
-                                        <ThemedText style={styles.qCloseBtnText}>Close</ThemedText>
-                                    </TouchableOpacity>
+                                    <>
+                                        <TouchableOpacity 
+                                            style={[styles.qStartBtn, { flex: 1, marginRight: 8 }]}
+                                            onPress={handleViewAnswers}
+                                        >
+                                            <ThemedText style={styles.qStartBtnText}>View Answers</ThemedText>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity 
+                                            style={[styles.qCloseBtn, { flex: 1 }]}
+                                            onPress={() => {
+                                                // Just a placeholder for now - can add hide functionality later
+                                                console.log('Close button clicked');
+                                            }}
+                                        >
+                                            <ThemedText style={styles.qCloseBtnText}>Close</ThemedText>
+                                        </TouchableOpacity>
+                                    </>
                                 )}
                             </View>
                         </View>
+                        {/* )} */}
                     </View>
                 </TouchableOpacity>
             );
@@ -1884,12 +2031,17 @@ const formatNaira = (v) => {
     };
 
     return (
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <View style={{ flex: 1 }}>
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                 <ImageBackground
                     source={require('../../../assets/bg.png')}
                     style={styles.background}
                 >
+                    <KeyboardAvoidingView 
+                        style={{ flex: 1 }} 
+                        behavior={Platform.OS === "ios" ? "padding" : undefined}
+                        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+                    >
                     <View style={styles.container}>
                         {/* Top Bar */}
                         <View style={styles.topBar}>
@@ -1902,10 +2054,27 @@ const formatNaira = (v) => {
                                 activeOpacity={0.85}
                                 style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}
                             >
-                                <Image source={agent.image} style={styles.agentPic} />
-                                <View>
+                                <View style={{ position: 'relative' }}>
+                                    <Image source={agent.image} style={styles.agentPic} />
+                                    {/* Online indicator dot on profile picture */}
+                                    <OnlineIndicator 
+                                        isOnline={otherUserStatus?.is_online} 
+                                        size={12} 
+                                        position="absolute" 
+                                    />
+                                </View>
+                                <View style={{ flex: 1 }}>
                                     <ThemedText style={styles.agentName}>{agent.name}</ThemedText>
-                                    <ThemedText style={styles.online}>Online</ThemedText>
+                                    {/* Show loading or online status */}
+                                    {statusLoading ? (
+                                        <ThemedText style={[styles.online, { color: '#9E9E9E' }]}>Loading...</ThemedText>
+                                    ) : (
+                                        <LastSeenText 
+                                            isOnline={otherUserStatus?.is_online} 
+                                            lastSeen={otherUserStatus?.last_seen}
+                                            style={styles.online}
+                                        />
+                                    )}
                                 </View>
                             </TouchableOpacity>
 
@@ -2024,7 +2193,7 @@ const formatNaira = (v) => {
                             </View>
                         )}
 
-                        <SafeAreaView edges={['bottom']} style={{ backgroundColor: '#fff' }}>
+                        <View style={styles.inputWrapper}>
                             <View style={styles.inputRow}>
                                 <TouchableOpacity style={{ marginTop: 15 }} onPress={() => {
                                     Keyboard.dismiss();
@@ -2064,7 +2233,7 @@ const formatNaira = (v) => {
                                     />
                                 )}
                             </View>
-                        </SafeAreaView>
+                        </View>
 
                         {userRole === 'support' && (
                             <Modal visible={modalVisible} animationType="slide" transparent>
@@ -2158,37 +2327,49 @@ const formatNaira = (v) => {
                             </Modal>
                         )}
 
-                        {/* Fill Questionnaire Modal */}
-                        {userRole == 'user' && (
-                            <Modal visible={questionnaireVisible} transparent animationType="slide">
+                        {/* Fill Questionnaire Modal - visible for both users and agents */}
+                        <Modal visible={questionnaireVisible} transparent animationType="slide">
                                 <View style={[styles.agentOptionsModal, { maxHeight: '100%' }]}>
                                     {currentCategoryIndex === 0 && (
-                                        <CategoryOneModal questions={questionnaireData[currentCategoryIndex]?.questions}
-                                            onClose={() => setQuestionnaireVisible(false)}
+                                        <CategoryOneModal 
+                                            category={dynamicQuestionnaireData[currentCategoryIndex]}
+                                            onClose={() => {
+                                                setQuestionnaireVisible(false);
+                                                setViewingAsAgent(false);
+                                            }}
                                             onNext={() => {
                                                 setCurrentCategoryIndex(prev => prev + 1)
                                             }}
                                             chat_id={chat_id}
                                             user_id={orderDetails?.user_id}
+                                            viewOnly={viewingAsAgent}
+                                            userAnswers={userAnswers}
                                         />
                                     )}
                                     {currentCategoryIndex === 1 && (
                                         <CategoryTwoModal
-                                            questions={questionnaireData[currentCategoryIndex]?.questions}
-                                            onClose={() => setQuestionnaireVisible(false)}
+                                            category={dynamicQuestionnaireData[currentCategoryIndex]}
+                                            onClose={() => {
+                                                setQuestionnaireVisible(false);
+                                                setViewingAsAgent(false);
+                                            }}
                                             onPrevious={() => setCurrentCategoryIndex(0)}
                                             onNext={() => setCurrentCategoryIndex(2)}
                                             chat_id={chat_id}
                                             user_id={orderDetails?.user_id}
+                                            viewOnly={viewingAsAgent}
+                                            userAnswers={userAnswers}
                                         />
                                     )}
                                     {currentCategoryIndex === 2 && (
                                         <CategoryThreeModal
-                                            questions={questionnaireData[currentCategoryIndex]?.questions}
+                                            category={dynamicQuestionnaireData[currentCategoryIndex]}
                                             questionIndex={currentQuestionIndex}
                                             setQuestionIndex={setCurrentQuestionIndex}
                                             chat_id={chat_id}
                                             user_id={orderDetails?.user_id}
+                                            viewOnly={viewingAsAgent}
+                                            userAnswers={userAnswers}
                                             onPrevious={() => {
                                                 setCurrentCategoryIndex(1);
                                                 setCurrentQuestionIndex(0);
@@ -2197,17 +2378,18 @@ const formatNaira = (v) => {
                                                 setQuestionnaireVisible(false);
                                                 setCurrentCategoryIndex(0);
                                                 setCurrentQuestionIndex(0);
+                                                setViewingAsAgent(false);
                                             }}
                                             onDone={(finalAnswers) => {
                                                 setQuestionnaireVisible(false);
                                                 setCurrentCategoryIndex(0);
                                                 setCurrentQuestionIndex(0);
+                                                setViewingAsAgent(false);
                                             }}
                                         />
                                     )}
                                 </View>
-                            </Modal>
-                        )}
+                        </Modal>
 
                         <PaymentModal
                             visible={paymentModalVisible}
@@ -2706,9 +2888,10 @@ const formatNaira = (v) => {
                             </View>
                         </Modal>
                     </View>
+                    </KeyboardAvoidingView>
                 </ImageBackground>
             </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
+        </View>
     );
 };
 const styles = StyleSheet.create({
@@ -2790,6 +2973,9 @@ const styles = StyleSheet.create({
     timeLeft: { color: '#000' },
     timeRight: { color: '#fff' },
 
+    inputWrapper: {
+        backgroundColor: '#fff',
+    },
     inputRow: {
         flexDirection: 'row',
         padding: 10,
@@ -2973,17 +3159,17 @@ const styles = StyleSheet.create({
 
     },
     qStartBtn: {
-        backgroundColor: '#992C55', paddingVertical: 13, paddingHorizontal: 60, borderRadius: 30,
+        backgroundColor: '#992C55', paddingVertical: 8, paddingHorizontal: 30, borderRadius: 20,
     },
     qStartBtnText: {
-        color: '#fff', fontWeight: '600',
+        color: '#fff', fontWeight: '600', fontSize: 13,
     },
     qCloseBtn: {
         backgroundColor: '#ccc',
-        paddingVertical: 13, paddingHorizontal: 60, borderRadius: 30,
+        paddingVertical: 8, paddingHorizontal: 30, borderRadius: 20,
     },
     qCloseBtnText: {
-        color: '#000', fontWeight: '600',
+        color: '#000', fontWeight: '600', fontSize: 13,
     },
 
     paymentCard: {

@@ -515,7 +515,7 @@ const ChatScreen = () => {
           service: serviceName,
           userRole: 'agent',
           user: 'LoggedInUser',
-          agent: { name: agent.name, image: { uri: agent.image_url } },
+          agent: { name: agent.name, image: { uri: agent.image_url }, id: agent.id },
           chat_id,
         });
         queryClient.invalidateQueries({ queryKey: ['chats'] });
@@ -713,7 +713,7 @@ const ChatScreen = () => {
                   chat_id: chat.id,
                   userRole: 'agent',
                   user: chat.name,
-                  agent: { name: chat.name, image: chat.image },
+                  agent: { name: chat.name, image: chat.image,id: chat.agentDetails.id },
                   service: chat.service || 'General',
                 });
               }}
