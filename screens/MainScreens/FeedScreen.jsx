@@ -137,9 +137,13 @@ const FeedPage = () => {
     );
   }
 
+  // Check if we're in tablet mode (passed as prop or detected)
+  const isTablet = Dimensions.get('window').width >= 600;
+
   return (
     <View style={styles.container}>
-      {/* Top Section */}
+      {/* Top Section - Simplified for tablet split view */}
+      {!isTablet && (
       <View style={styles.topSection}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <ThemedText fontFamily="monaque" weight="bold" style={styles.headerTitle}>
@@ -174,16 +178,29 @@ const FeedPage = () => {
           ))}
         </ScrollView>
       </View>
+      )}
+
+      {/* Tablet Header */}
+      {isTablet && (
+        <View style={styles.tabletHeader}>
+          <ThemedText fontFamily="monaque" weight="bold" style={styles.tabletHeaderTitle}>
+            Latest Feeds
+          </ThemedText>
+          <ThemedText style={styles.tabletHeaderSubtitle}>
+            View the latest photo edits, manipulations and retouchs
+          </ThemedText>
+        </View>
+      )}
 
       {/* Cards Container */}
-      <View style={styles.cardWrapper}>
+      <View style={isTablet ? styles.tabletCardWrapper : styles.cardWrapper}>
         <FlatList
           data={filteredFeeds}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingTop: 20, paddingBottom: 120 }}
           renderItem={({ item }) => (
-            <View style={styles.card}>
+            <View style={isTablet ? styles.tabletCard : styles.card}>
               <Image
                 source={{ uri: item.featured_image }}
                 style={styles.feedImage}
@@ -253,6 +270,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 10,
   },
+  tabletCardWrapper: {
+    flex: 1,
+    paddingHorizontal: 15, // Decreased from 20
+    paddingTop: 20,
+    paddingBottom: 20,
+  },
+  tabletHeader: {
+    paddingHorizontal: 15, // Decreased from 20
+    paddingTop: 20,
+    paddingBottom: 15,
+    backgroundColor: '#fff',
+  },
+  tabletHeaderTitle: {
+    fontSize: 26,
+    color: '#000',
+    marginBottom: 8,
+    fontWeight: 'bold',
+  },
+  tabletHeaderSubtitle: {
+    fontSize: 14,
+    color: 'rgba(0,0,0,0.5)',
+    lineHeight: 20,
+  },
 
   card: {
     backgroundColor: '#FFE2ED',
@@ -266,6 +306,18 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
     minHeight: 270,
+  },
+  tabletCard: {
+    backgroundColor: '#FFE2ED',
+    borderRadius: 15,
+    marginBottom: 20,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 5,
+    elevation: 2,
+    minHeight: 351,
   },
   feedImage: { width: '100%', height: 220, borderRadius: 15 },
   footerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingLeft: 12 },

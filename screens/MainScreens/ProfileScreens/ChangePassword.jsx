@@ -13,7 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import ThemedText from '../../../components/ThemedText';
 import axios from 'axios';
 
-const ChangePassword = () => {
+const ChangePassword = ({ isTabletSplitView = false, onBack, onSuccess }) => {
   const navigation = useNavigation();
 
   const [email, setEmail] = useState('');
@@ -82,7 +82,11 @@ const ChangePassword = () => {
         password: newPassword,
       });
       toast('Password changed successfully');
-      navigation.goBack();
+      if (isTabletSplitView && onSuccess) {
+        onSuccess();
+      } else {
+        navigation.goBack();
+      }
     } catch (err) {
       console.log(err.response?.data || err.message);
       toast('Failed to change password');
@@ -92,55 +96,61 @@ const ChangePassword = () => {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={28} color="#000" />
-        </TouchableOpacity>
-        <ThemedText style={styles.title}>Change Password</ThemedText>
+      <View style={[styles.header, isTabletSplitView && styles.tabletHeader]}>
+        {!isTabletSplitView ? (
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={28} color="#000" />
+          </TouchableOpacity>
+        ) : onBack ? (
+          <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={28} color="#000" />
+          </TouchableOpacity>
+        ) : null}
+        <ThemedText style={[styles.title, isTabletSplitView && styles.tabletTitle]}>Change Password</ThemedText>
       </View>
 
       <View style={styles.form}>
-        <ThemedText style={styles.label}>Email</ThemedText>
-        <ThemedText style={styles.subLabel}>
+        <ThemedText style={[styles.label, isTabletSplitView && styles.tabletLabel]}>Email</ThemedText>
+        <ThemedText style={[styles.subLabel, isTabletSplitView && styles.tabletSubLabel]}>
           Input the email you used in creating your account, a verification code will be sent
         </ThemedText>
 
         <View style={styles.rowInput}>
           <TextInput
-            style={[styles.input, { flex: 1 }]}
+            style={[styles.input, isTabletSplitView && styles.tabletInput, { flex: 1 }]}
             placeholder="Input email"
             value={email}
             onChangeText={setEmail}
           />
-          <TouchableOpacity style={styles.sendBtn} onPress={handleSendCode}>
-            <ThemedText style={styles.sendText}>Send</ThemedText>
+          <TouchableOpacity style={[styles.sendBtn, isTabletSplitView && styles.tabletSendBtn]} onPress={handleSendCode}>
+            <ThemedText style={[styles.sendText, isTabletSplitView && styles.tabletSendText]}>Send</ThemedText>
           </TouchableOpacity>
         </View>
 
-        <ThemedText style={styles.timerText}>
+        <ThemedText style={[styles.timerText, isTabletSplitView && styles.tabletTimerText]}>
           Request new code in <Text style={{ color: 'red' }}>00:{String(timer).padStart(2, '0')}</Text>
         </ThemedText>
 
-        <ThemedText style={styles.label}>Input Code</ThemedText>
+        <ThemedText style={[styles.label, isTabletSplitView && styles.tabletLabel]}>Input Code</ThemedText>
         <View style={styles.rowInput}>
           <TextInput
-            style={[styles.input, { flex: 1 }]}
+            style={[styles.input, isTabletSplitView && styles.tabletInput, { flex: 1 }]}
             placeholder="Enter code"
             keyboardType="number-pad"
             value={code}
             onChangeText={setCode}
           />
-          <TouchableOpacity style={styles.verifyBtn} onPress={handleVerifyCode}>
-            <ThemedText style={styles.sendText}>Verify</ThemedText>
+          <TouchableOpacity style={[styles.verifyBtn, isTabletSplitView && styles.tabletVerifyBtn]} onPress={handleVerifyCode}>
+            <ThemedText style={[styles.sendText, isTabletSplitView && styles.tabletSendText]}>Verify</ThemedText>
           </TouchableOpacity>
         </View>
 
         {codeVerified && (
           <>
-            <ThemedText style={styles.label}>New Password</ThemedText>
+            <ThemedText style={[styles.label, isTabletSplitView && styles.tabletLabel]}>New Password</ThemedText>
             <View style={styles.inputWithIcon}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, isTabletSplitView && styles.tabletInput]}
                 placeholder="New password"
                 secureTextEntry={!showNewPassword}
                 value={newPassword}
@@ -154,10 +164,10 @@ const ChangePassword = () => {
               </TouchableOpacity>
             </View>
 
-            <ThemedText style={styles.label}>Reenter Password</ThemedText>
+            <ThemedText style={[styles.label, isTabletSplitView && styles.tabletLabel]}>Reenter Password</ThemedText>
             <View style={styles.inputWithIcon}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, isTabletSplitView && styles.tabletInput]}
                 placeholder="Reenter password"
                 secureTextEntry={!showReenterPassword}
                 value={reenterPassword}
@@ -172,8 +182,8 @@ const ChangePassword = () => {
             </View>
 
             {/* Save Button */}
-            <TouchableOpacity style={styles.saveBtn} onPress={handleChangePassword}>
-              <ThemedText style={styles.saveText}>Save Changes</ThemedText>
+            <TouchableOpacity style={[styles.saveBtn, isTabletSplitView && styles.tabletSaveBtn]} onPress={handleChangePassword}>
+              <ThemedText style={[styles.saveText, isTabletSplitView && styles.tabletSaveText]}>Save Changes</ThemedText>
             </TouchableOpacity>
           </>
         )}
@@ -280,5 +290,51 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
+  },
+  // Tablet-specific styles with increased font sizes
+  tabletHeader: {
+    paddingTop: 30,
+    paddingBottom: 15,
+  },
+  tabletTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  tabletLabel: {
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  tabletSubLabel: {
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  tabletInput: {
+    padding: 16,
+    fontSize: 17,
+    marginBottom: 14,
+  },
+  tabletSendBtn: {
+    paddingVertical: 15,
+    paddingHorizontal: 24,
+  },
+  tabletVerifyBtn: {
+    paddingVertical: 15,
+    paddingHorizontal: 24,
+  },
+  tabletSendText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  tabletTimerText: {
+    fontSize: 14,
+    marginBottom: 18,
+  },
+  tabletSaveBtn: {
+    paddingVertical: 16,
+    marginTop: 24,
+  },
+  tabletSaveText: {
+    fontSize: 18,
+    fontWeight: '700',
   },
 });

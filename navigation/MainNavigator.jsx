@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { View, StyleSheet, Image, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; // 1. Import the hook
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import useIsTablet from '../hooks/useIsTablet';
+import TabletSidebar from '../components/TabletSidebar';
 
 // Screens
 import HomeScreen from '../screens/MainScreens/HomeScreen';
@@ -10,12 +13,80 @@ import OrdersScreen from '../screens/OrderScreens/OrdersScreen';
 import ProfileScreen from '../screens/MainScreens/ProfileScreens/ProfileScreen';
 import FeedScreen from '../screens/MainScreens/FeedScreen';
 import ChatsScreen from '../screens/MainScreens/ChatScreens/ChatsScreen';
+import ChatSplitView from '../components/ChatSplitView';
+import OrderSplitView from '../components/OrderSplitView';
+import ProfileSplitView from '../components/ProfileSplitView';
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
 const MainNavigator = () => {
-  const insets = useSafeAreaInsets(); // 2. Get safe area insets
+  const insets = useSafeAreaInsets();
+  const isTablet = useIsTablet();
+  const [activeRoute, setActiveRoute] = useState('Home');
 
+  // Tablet Layout: Sidebar + Split View (Home + Feed) - Always show split view on tablet
+  if (isTablet) {
+    return (
+      <View style={styles.tabletContainer}>
+        {/* Sidebar */}
+        <TabletSidebar 
+          activeRoute={activeRoute} 
+          onNavigate={(route) => setActiveRoute(route)}
+        />
+        
+        {/* Content Area */}
+        <View style={styles.tabletContentArea}>
+          {/* Left Panel - Home (always show when Home is active) */}
+          {activeRoute === 'Home' && (
+            <>
+              <View style={styles.tabletLeftPanel}>
+                <HomeScreen />
+              </View>
+              
+              {/* Right Panel - Feed (always show when Home is active) */}
+              <View style={styles.tabletRightPanel}>
+                <FeedScreen />
+              </View>
+            </>
+          )}
+          
+          {/* Split View for Chats */}
+          {activeRoute === 'Chats' && (
+            <View style={styles.tabletFullPanel}>
+              <ChatSplitView />
+            </View>
+          )}
+
+          {/* Split View for Orders */}
+          {activeRoute === 'Orders' && (
+            <View style={styles.tabletFullPanel}>
+              <OrderSplitView />
+            </View>
+          )}
+
+          {/* Split View for Profile */}
+          {activeRoute === 'Profile' && (
+            <View style={styles.tabletFullPanel}>
+              <ProfileSplitView />
+            </View>
+          )}
+          
+          {/* Full Screen for other routes */}
+          {activeRoute !== 'Home' && activeRoute !== 'Chats' && activeRoute !== 'Orders' && activeRoute !== 'Profile' && (
+            <View style={styles.tabletFullPanel}>
+              {activeRoute === 'Feed' && <FeedScreen />}
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  // Mobile Layout - Bottom Tabs
+  const safeAreaBottom = Math.max(insets.bottom, 8);
+  const tabBarHeight = 65 + safeAreaBottom;
+  
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -28,13 +99,21 @@ const MainNavigator = () => {
       backgroundColor: '#fff',
       borderTopLeftRadius: 20,
       borderTopRightRadius: 20,
-      height: 65,
-      paddingBottom: Math.max(insets.bottom, 8),
+      height: tabBarHeight,
+      paddingBottom: safeAreaBottom,
       paddingTop: 6,
+      position: 'absolute',
+      elevation: 0,
+      shadowOpacity: 0,
+      borderTopWidth: 0,
     },
     tabBarLabelStyle: {
       fontSize: 12,
-      marginBottom: 5,
+      marginBottom: 0,
+      paddingBottom: 0,
+    },
+    tabBarItemStyle: {
+      paddingVertical: 4,
     },
 
         tabBarIcon: ({ color, focused, size }) => {
@@ -66,9 +145,7 @@ const MainNavigator = () => {
                   height: 48,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  // Adjust positioning to look good with the new dynamic height
-                  // transform: [{ translateY: -15 }],
-                  marginBottom:-25
+                  marginTop: -8,
                 }}
               >
                 <Ionicons name="chatbubble-outline" size={24} color="#fff" />
@@ -111,12 +188,47 @@ const MainNavigator = () => {
 };
 
 const styles = StyleSheet.create({
+  // Tablet Styles
+  tabletContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#F5F5F7', // Light gray background like Figma
+    padding: 20,
+  },
+  tabletContentArea: {
+    flex: 1,
+    flexDirection: 'row',
+    marginLeft: 20,
+  },
+  tabletLeftPanel: {
+    flex: 1,
+    minWidth: 400, // Minimum width for Home panel
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    marginRight: 20, // Gap between panels
+  },
+  tabletRightPanel: {
+    flex: 1,
+    minWidth: 300, // Minimum width for Feed panel
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+  },
+  tabletFullPanel: {
+    flex: 1,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+  },
+  
+  // Mobile Styles
   iconContainer: {
     alignItems: 'center',
-    justifyContent: 'flex-start', // Align to the top
-    paddingTop: 8, // Add some top padding
+    justifyContent: 'center',
     height: '100%',
     width: '100%',
+    paddingTop: 4,
   },
   activeIndicator: {
     position: 'absolute',

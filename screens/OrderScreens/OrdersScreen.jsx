@@ -44,7 +44,7 @@ const getIconInfo = (serviceType) => {
 const POLL_MS = 15000;   // auto-refresh list every 15s
 const STALE_MS = 60000;  // data considered fresh for 60s
 
-const OrderScreen = () => {
+const OrderScreen = ({ onOrderSelect, onFirstOrderReady, isTabletSplitView = false }) => {
   const navigation = useNavigation();
 
   // local UI state (filters)
@@ -130,6 +130,14 @@ const OrderScreen = () => {
     return rows;
   }, [orders, selectedCategory, selectedStatus, selectedDate]);
 
+  // Auto-select first order in tablet split view mode
+  useEffect(() => {
+    if (isTabletSplitView && onFirstOrderReady && filteredOrders.length > 0) {
+      const firstOrder = filteredOrders[0];
+      onFirstOrderReady(firstOrder.fullData);
+    }
+  }, [filteredOrders, isTabletSplitView, onFirstOrderReady]);
+
   const formatDate = (isoString) => {
     const date = new Date(isoString);
     const options = { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' };
@@ -170,12 +178,14 @@ const OrderScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topSection}>
+      <View style={[styles.topSection, isTabletSplitView && styles.tabletTopSection]}>
         <View style={styles.topBarRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={28} color="#fff" />
-          </TouchableOpacity>
-          <ThemedText fontFamily="monaque" weight="bold" style={styles.headerTitle}>
+          {!isTabletSplitView && (
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Ionicons name="chevron-back" size={28} color="#fff" />
+            </TouchableOpacity>
+          )}
+          <ThemedText fontFamily="monaque" weight="bold" style={[styles.headerTitle, isTabletSplitView && styles.tabletHeaderTitle]}>
             Orders
           </ThemedText>
           {/* tiny fetch spinner in header if background refresh */}
@@ -189,7 +199,12 @@ const OrderScreen = () => {
               onPress={() => setSelectedCategory(cat)}
               style={[styles.categoryButton, selectedCategory === cat && styles.activeCategoryButton]}
             >
-              <ThemedText style={[styles.categoryText, selectedCategory === cat && styles.activeCategoryText]}>
+              <ThemedText style={[
+                styles.categoryText, 
+                isTabletSplitView && styles.tabletCategoryText,
+                selectedCategory === cat && styles.activeCategoryText,
+                selectedCategory === cat && isTabletSplitView && styles.tabletActiveCategoryText
+              ]}>
                 {cat}
               </ThemedText>
             </TouchableOpacity>
@@ -205,7 +220,7 @@ const OrderScreen = () => {
               onPress={() => setShowStatusDropdown(!showStatusDropdown)}
             >
               <Ionicons name="filter" size={14} color="#555" style={{ marginRight: 4 }} />
-              <ThemedText style={styles.sortText}>Status</ThemedText>
+              <ThemedText style={[styles.sortText, isTabletSplitView && styles.tabletSortText]}>Status</ThemedText>
               <Ionicons name="caret-down" size={18} color="#555" style={{ marginLeft: 4 }} />
             </TouchableOpacity>
             {showStatusDropdown && (
@@ -218,7 +233,7 @@ const OrderScreen = () => {
                       setShowStatusDropdown(false);
                     }}
                   >
-                    <ThemedText style={styles.dropdownItem}>{option}</ThemedText>
+                    <ThemedText style={[styles.dropdownItem, isTabletSplitView && styles.tabletDropdownItem]}>{option}</ThemedText>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -230,7 +245,7 @@ const OrderScreen = () => {
               style={styles.sortButton}
               onPress={() => setShowDateDropdown(!showDateDropdown)}
             >
-              <ThemedText style={styles.sortText}>Date</ThemedText>
+              <ThemedText style={[styles.sortText, isTabletSplitView && styles.tabletSortText]}>Date</ThemedText>
               <Ionicons name="caret-down" size={18} color="#555" style={{ marginLeft: 4 }} />
             </TouchableOpacity>
             {showDateDropdown && (
@@ -243,7 +258,7 @@ const OrderScreen = () => {
                       setShowDateDropdown(false);
                     }}
                   >
-                    <ThemedText style={styles.dropdownItem}>{option}</ThemedText>
+                    <ThemedText style={[styles.dropdownItem, isTabletSplitView && styles.tabletDropdownItem]}>{option}</ThemedText>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -259,20 +274,28 @@ const OrderScreen = () => {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.card}
-              onPress={() => navigation.navigate('OrderDetails', { order: item.fullData })}
+              onPress={() => {
+                if (isTabletSplitView && onOrderSelect) {
+                  // For tablet split view, call callback instead of navigating
+                  onOrderSelect(item.fullData);
+                } else {
+                  // For mobile, navigate normally
+                  navigation.navigate('OrderDetails', { order: item.fullData });
+                }
+              }}
             >
               <View style={styles.cardLeft}>
                 <View style={[styles.iconCircle, item.iconcircle]}>
                   <Image source={item.icon} style={{ width: 24, height: 24 }} resizeMode="contain" />
                 </View>
                 <View>
-                  <ThemedText style={styles.orderType}>{`Photo ${item.type}`}</ThemedText>
-                  <ThemedText style={styles.price}>{item.price}</ThemedText>
+                  <ThemedText style={[styles.orderType, isTabletSplitView && styles.tabletOrderType]}>{`Photo ${item.type}`}</ThemedText>
+                  <ThemedText style={[styles.price, isTabletSplitView && styles.tabletPrice]}>{item.price}</ThemedText>
                 </View>
               </View>
               <View style={styles.cardRight}>
-                <ThemedText style={[styles.status, getStatusStyle(item.status)]}>{item.status}</ThemedText>
-                <ThemedText style={styles.date}>{formatDate(item.date)}</ThemedText>
+                <ThemedText style={[styles.status, isTabletSplitView && styles.tabletStatus, getStatusStyle(item.status)]}>{item.status}</ThemedText>
+                <ThemedText style={[styles.date, isTabletSplitView && styles.tabletDate]}>{formatDate(item.date)}</ThemedText>
               </View>
             </TouchableOpacity>
           )}
@@ -287,8 +310,10 @@ export default OrderScreen;
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   topSection: { backgroundColor: '#992C55', paddingTop: 70, paddingBottom: 40, paddingHorizontal: 16, zIndex: 0 },
+  tabletTopSection: { paddingTop: 30, paddingBottom: 30, paddingHorizontal: 20 }, // Reduced padding for tablet
   topBarRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 10 },
   headerTitle: { fontSize: 26, fontWeight: '600', color: '#fff' },
+  tabletHeaderTitle: { fontSize: 30, fontWeight: 'bold' }, // Increased font size for tablet
   categoryContainer: { flexDirection: 'row', alignItems: 'center' },
   categoryButton: { backgroundColor: '#BA3B6B', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, marginRight: 10 },
   activeCategoryButton: { backgroundColor: '#fff' },
@@ -310,4 +335,13 @@ const styles = StyleSheet.create({
   completed: { color: 'green' },
   inProgress: { color: '#e58b00' },
   date: { fontSize: 11, color: '#aaa' },
+  // Tablet-specific styles with increased font sizes
+  tabletCategoryText: { fontSize: 15, color: '#fff', fontWeight: '500' },
+  tabletActiveCategoryText: { fontSize: 15, color: '#000' },
+  tabletSortText: { fontSize: 16, color: '#000' },
+  tabletDropdownItem: { fontSize: 15, fontWeight: '500', color: '#333', paddingVertical: 8 },
+  tabletOrderType: { fontSize: 18, fontWeight: '600', color: '#222' },
+  tabletPrice: { fontSize: 15, color: '#999' },
+  tabletStatus: { fontSize: 15, fontWeight: '600' },
+  tabletDate: { fontSize: 13, color: '#aaa' },
 });

@@ -13,7 +13,12 @@ import {
   ActivityIndicator,
   ToastAndroid,
   Alert,
+  Text,
+  Dimensions,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
@@ -24,6 +29,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import ThemedText from '../../components/ThemedText';
 import API from '../../config/api.config';
+import useIsTablet from '../../hooks/useIsTablet';
 
 // Images
 import logo from '../../assets/logo.png';
@@ -36,6 +42,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 const RegisterScreen = () => {
   const navigation = useNavigation();
+  const isTablet = useIsTablet();
 
   // form state
   const [username, setUsername] = useState('');
@@ -234,6 +241,191 @@ const RegisterScreen = () => {
     }
   };
 
+  // Tablet Layout (matching Figma design)
+  if (isTablet) {
+    return (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.tabletContainer}>
+            <StatusBar style="light" />
+            {/* Backdrop Blur Overlay */}
+            <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="dark" />
+            <View style={StyleSheet.absoluteFill} />
+            
+            {/* Centered Modal */}
+            <View style={[styles.tabletModal, { width: Math.min(556, Dimensions.get('window').width * 0.85) }]}>
+              {/* Purple Header */}
+              <View style={styles.tabletHeader}>
+                <Image style={styles.tabletLogo} source={logo} />
+                <ThemedText style={styles.tabletSubtitle}>
+                  Photo Editing • Photo Manipulation • Photo Reshaping
+                </ThemedText>
+              </View>
+
+              {/* White Form Card */}
+              <ScrollView 
+                style={styles.tabletCard}
+                contentContainerStyle={styles.tabletCardContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={true}
+              >
+                {/* Social Buttons Row */}
+                <View style={styles.tabletSocialRow}>
+                  <TouchableOpacity
+                    style={styles.tabletSocialButton}
+                    disabled={loading}
+                    onPress={handleGoogleAuth}
+                  >
+                    <Image style={styles.tabletSocialIcon} source={google} />
+                    <Text style={styles.tabletSocialText}>Google</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.tabletSocialButton}
+                    disabled={loading}
+                  >
+                    <Image style={styles.tabletSocialIcon} source={facebook} />
+                    <Text style={styles.tabletSocialText}>Facebook</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Divider */}
+                <View style={styles.tabletDividerContainer}>
+                  <View style={styles.tabletDividerLine} />
+                  <View style={styles.tabletDividerTextBg}>
+                    <Text style={styles.tabletDividerText}>or continue with</Text>
+                  </View>
+                </View>
+
+                {/* Form Fields Container */}
+                <View style={styles.tabletFormFields}>
+                  {/* Username */}
+                  <View style={styles.tabletFieldContainer}>
+                    <Text style={styles.tabletLabel}>Username</Text>
+                    <View style={[styles.tabletInputWrapper, focus.user && styles.tabletInputFocused]}>
+                      <TextInput
+                        placeholder="Enter username"
+                        placeholderTextColor="rgba(0,0,0,0.5)"
+                        value={username}
+                        onChangeText={setUsername}
+                        style={styles.tabletInput}
+                        onFocus={() => setFocus({ ...focus, user: true })}
+                        onBlur={() => setFocus({ ...focus, user: false })}
+                        editable={!loading}
+                        returnKeyType="next"
+                      />
+                    </View>
+                  </View>
+
+                  {/* Email */}
+                  <View style={styles.tabletFieldContainer}>
+                    <Text style={styles.tabletLabel}>Email</Text>
+                    <View style={[styles.tabletInputWrapper, focus.email && styles.tabletInputFocused]}>
+                      <TextInput
+                        placeholder="email"
+                        placeholderTextColor="rgba(0,0,0,0.5)"
+                        value={email}
+                        onChangeText={setEmail}
+                        style={styles.tabletInput}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        onFocus={() => setFocus({ ...focus, email: true })}
+                        onBlur={() => setFocus({ ...focus, email: false })}
+                        editable={!loading}
+                        returnKeyType="next"
+                      />
+                    </View>
+                  </View>
+
+                  {/* Phone */}
+                  <View style={styles.tabletFieldContainer}>
+                    <Text style={styles.tabletLabel}>Phone number</Text>
+                    <View style={[styles.tabletInputWrapper, focus.phone && styles.tabletInputFocused]}>
+                      <TextInput
+                        placeholder="Enter phone number"
+                        placeholderTextColor="rgba(0,0,0,0.5)"
+                        value={phone}
+                        onChangeText={setPhone}
+                        style={styles.tabletInput}
+                        keyboardType="phone-pad"
+                        onFocus={() => setFocus({ ...focus, phone: true })}
+                        onBlur={() => setFocus({ ...focus, phone: false })}
+                        editable={!loading}
+                        returnKeyType="next"
+                      />
+                    </View>
+                  </View>
+
+                  {/* Password */}
+                  <View style={styles.tabletFieldContainer}>
+                    <Text style={styles.tabletLabel}>Password</Text>
+                    <View style={[styles.tabletInputWrapper, focus.pass && styles.tabletInputFocused]}>
+                      <TextInput
+                        placeholder="Enter password"
+                        placeholderTextColor="rgba(0,0,0,0.5)"
+                        value={password}
+                        onChangeText={setPassword}
+                        style={styles.tabletInput}
+                        secureTextEntry={!showPassword}
+                        onFocus={() => setFocus({ ...focus, pass: true })}
+                        onBlur={() => setFocus({ ...focus, pass: false })}
+                        editable={!loading}
+                        returnKeyType="done"
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowPass(!showPassword)}
+                        disabled={loading}
+                      >
+                        <Ionicons
+                          name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                          size={18}
+                          color="rgba(0,0,0,0.5)"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Register Button */}
+                <TouchableOpacity
+                  style={[styles.tabletRegisterButton, !canSubmit && { opacity: 0.6 }]}
+                  activeOpacity={0.7}
+                  onPress={handleRegister}
+                  disabled={!canSubmit}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.tabletRegisterButtonText}>Register</Text>
+                  )}
+                </TouchableOpacity>
+
+                {/* Login Link */}
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('Login')}
+                  style={styles.tabletLoginLink}
+                  disabled={loading}
+                >
+                  <Text style={styles.tabletLoginLinkText}>Login</Text>
+                </TouchableOpacity>
+
+                {/* Terms */}
+                <Text style={styles.tabletTermsText}>
+                  By proceeding you agree with Edit by Mercy's{' '}
+                  <Text style={styles.tabletTermsLink}>terms of use</Text> and{' '}
+                  <Text style={styles.tabletTermsLink}>privacy policy</Text>
+                </Text>
+              </ScrollView>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // Mobile Layout (existing)
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -455,4 +647,162 @@ const styles = StyleSheet.create({
   loginButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   registerLink: { alignItems: 'center' },
   registerText: { color: '#992C55', fontSize: 16 },
+  
+  // Tablet Styles
+  tabletContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  tabletModal: {
+    backgroundColor: '#992C55',
+    borderRadius: 30,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 5, height: 5 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+    maxHeight: '90%',
+  },
+  tabletHeader: {
+    paddingTop: 64,
+    paddingBottom: 28,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  tabletLogo: {
+    width: 184,
+    height: 81,
+    marginBottom: 8,
+  },
+  tabletSubtitle: {
+    fontSize: 12,
+    color: '#fff',
+    textAlign: 'center',
+  },
+  tabletCard: {
+    backgroundColor: '#F5F5F7',
+    borderTopLeftRadius: 15,
+    borderTopRightRadius: 15,
+    maxHeight: 721,
+  },
+  tabletCardContent: {
+    padding: 20,
+    paddingBottom: 30,
+    flexGrow: 1,
+  },
+  tabletSocialRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  tabletSocialButton: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    height: 45,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 5,
+  },
+  tabletSocialIcon: {
+    width: 16,
+    height: 16,
+    marginRight: 8,
+  },
+  tabletSocialText: {
+    fontSize: 14,
+    color: '#000',
+  },
+  tabletDividerContainer: {
+    position: 'relative',
+    height: 18,
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  tabletDividerLine: {
+    position: 'absolute',
+    top: 9,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: '#000',
+    opacity: 0.1,
+  },
+  tabletDividerTextBg: {
+    position: 'absolute',
+    left: '50%',
+    top: 0,
+    transform: [{ translateX: -42.5 }],
+    backgroundColor: '#F5F5F7',
+    paddingHorizontal: 5,
+  },
+  tabletDividerText: {
+    fontSize: 10,
+    color: 'rgba(0,0,0,0.5)',
+  },
+  tabletFormFields: {
+    marginBottom: 20,
+  },
+  tabletFieldContainer: {
+    marginBottom: 20,
+  },
+  tabletLabel: {
+    fontSize: 14,
+    color: '#000',
+  },
+  tabletInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    height: 50,
+    paddingHorizontal: 17,
+    borderWidth: 1,
+    borderColor: '#fff',
+  },
+  tabletInputFocused: {
+    borderColor: '#992C55',
+  },
+  tabletInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#000',
+  },
+  tabletRegisterButton: {
+    backgroundColor: '#992C55',
+    borderRadius: 100,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  tabletRegisterButtonText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  tabletLoginLink: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  tabletLoginLinkText: {
+    fontSize: 14,
+    color: '#992C55',
+  },
+  tabletTermsText: {
+    fontSize: 12,
+    color: '#000',
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  tabletTermsLink: {
+    color: '#992C55',
+  },
 });
+
+
+

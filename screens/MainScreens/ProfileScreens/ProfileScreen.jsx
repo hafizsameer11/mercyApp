@@ -15,13 +15,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const getAvatarKey = (user) => `avatar:${user?.id ?? user?.email ?? 'guest'}`;
 
-const ProfileScreen = () => {
+const ProfileScreen = ({ onEditProfilePress, isTabletSplitView = false }) => {
   const navigation = useNavigation();
 
   const LinkCard = ({ icon, text, bgColor, textColor = '#fff', onPress }) => (
     <TouchableOpacity style={[styles.linkCard, bgColor && { backgroundColor: bgColor }]} onPress={onPress} activeOpacity={0.7}>
       {icon}
-      <ThemedText style={[styles.linkText, { color: textColor }]}>{text}</ThemedText>
+      <ThemedText style={[styles.linkText, isTabletSplitView && styles.tabletLinkText, { color: textColor }]}>{text}</ThemedText>
     </TouchableOpacity>
   );
 
@@ -130,11 +130,13 @@ const ProfileScreen = () => {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* Top Profile Section */}
-      <View style={styles.topSection}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={28} color="#fff" />
-        </TouchableOpacity>
-        <ThemedText style={styles.title}>Profile</ThemedText>
+      <View style={[styles.topSection, isTabletSplitView && styles.tabletTopSection]}>
+        {!isTabletSplitView && (
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={28} color="#fff" />
+          </TouchableOpacity>
+        )}
+        <ThemedText style={[styles.title, isTabletSplitView && styles.tabletTitle]}>Profile</ThemedText>
 
         {localAvatar ? (
           <Image source={{ uri: localAvatar }} style={styles.avatar} onError={(e)=>console.log('Local avatar failed:', localAvatar, e?.nativeEvent)} />
@@ -145,9 +147,9 @@ const ProfileScreen = () => {
         )}
 
         <View style={{ width: 370, marginTop: 20 }}>
-          <TextInputRow label="Username" value={user?.name || 'N/A'} />
-          <TextInputRow label="Email" value={user?.email || 'N/A'} />
-          <TextInputRow label="Phone Number" value={user?.phone || 'N/A'} />
+          <TextInputRow label="Username" value={user?.name || 'N/A'} isTablet={isTabletSplitView} />
+          <TextInputRow label="Email" value={user?.email || 'N/A'} isTablet={isTabletSplitView} />
+          <TextInputRow label="Phone Number" value={user?.phone || 'N/A'} isTablet={isTabletSplitView} />
         </View>
       </View>
 
@@ -155,7 +157,7 @@ const ProfileScreen = () => {
       <View style={styles.infoContainer}>
         <View style={styles.aboutBox}>
           <View style={styles.aboutHeader}>
-            <ThemedText style={styles.aboutLabel}>About Me</ThemedText>
+            <ThemedText style={[styles.aboutLabel, isTabletSplitView && styles.tabletAboutLabel]}>About Me</ThemedText>
 
             {editingAbout ? (
               <View style={styles.aboutActions}>
@@ -184,7 +186,7 @@ const ProfileScreen = () => {
               maxLength={600}
             />
           ) : (
-            <ThemedText style={[styles.aboutText, !about && { opacity: 0.6 }]}>
+            <ThemedText style={[styles.aboutText, isTabletSplitView && styles.tabletAboutText, !about && { opacity: 0.6 }]}>
               {about ?? 'No about yet. Tap the edit icon to add one.'}
             </ThemedText>
           )}
@@ -192,7 +194,7 @@ const ProfileScreen = () => {
       </View>
 
       {/* Quick Links */}
-      <ThemedText style={styles.sectionTitle}>Quick links</ThemedText>
+      <ThemedText style={[styles.sectionTitle, isTabletSplitView && styles.tabletSectionTitle]}>Quick links</ThemedText>
       <View style={styles.linksWrapper}>
         {isUser ? (
           <LinkCard
@@ -221,7 +223,13 @@ const ProfileScreen = () => {
         />
 
         <LinkCard
-          onPress={() => navigation.navigate('EditProfile')}
+          onPress={() => {
+            if (isTabletSplitView && onEditProfilePress) {
+              onEditProfilePress();
+            } else {
+              navigation.navigate('EditProfile');
+            }
+          }}
           icon={<MaterialIcons name="person-outline" size={22} color="#393b4b" />}
           text="Edit Profile"
           textColor="#393b4b"
@@ -230,7 +238,7 @@ const ProfileScreen = () => {
       </View>
 
       {/* Others */}
-      <ThemedText style={styles.sectionTitle}>Others</ThemedText>
+      <ThemedText style={[styles.sectionTitle, isTabletSplitView && styles.tabletSectionTitle]}>Others</ThemedText>
       <View style={styles.linksWrapper}>
         {isUser && (
           <LinkCard
@@ -262,10 +270,10 @@ const ProfileScreen = () => {
   );
 };
 
-const TextInputRow = ({ label, value }) => (
+const TextInputRow = ({ label, value, isTablet = false }) => (
   <View style={styles.inputRow}>
-    <ThemedText style={styles.inputLabel}>{label}</ThemedText>
-    <ThemedText style={styles.inputValue}>{value}</ThemedText>
+    <ThemedText style={[styles.inputLabel, isTablet && styles.tabletInputLabel]}>{label}</ThemedText>
+    <ThemedText style={[styles.inputValue, isTablet && styles.tabletInputValue]}>{value}</ThemedText>
   </View>
 );
 
@@ -331,4 +339,36 @@ const styles = StyleSheet.create({
     backgroundColor: '#ddd',
   },
   linkText: { marginLeft: 12, fontSize: 15, fontWeight: 'bold' },
+  // Tablet-specific styles with increased font sizes
+  tabletTopSection: {
+    paddingTop: 30,
+    paddingBottom: 40,
+  },
+  tabletTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  tabletInputLabel: {
+    fontSize: 14,
+  },
+  tabletInputValue: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  tabletAboutLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  tabletAboutText: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  tabletSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  tabletLinkText: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
 });

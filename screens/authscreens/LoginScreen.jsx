@@ -15,7 +15,9 @@ import {
   Keyboard,
   ToastAndroid,
   Alert,
+  Dimensions,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import logo from '../../assets/logo.png';
 import icon from '../../assets/Img.png';
 import google from '../../assets/google.png';
@@ -30,12 +32,14 @@ import API from '../../config/api.config';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import useIsTablet from '../../hooks/useIsTablet';
 
 // Complete auth session for Expo Web Browser
 WebBrowser.maybeCompleteAuthSession();
 
 const LoginScreen = () => {
   const navigation = useNavigation();
+  const isTablet = useIsTablet();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -196,6 +200,148 @@ const LoginScreen = () => {
     checkAuth();
   }, []);
 
+  // Tablet Layout (matching Figma design)
+  if (isTablet) {
+    return (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.tabletContainer}>
+            <StatusBar style="light" />
+            {/* Backdrop Blur Overlay */}
+            <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="dark" />
+            <View style={StyleSheet.absoluteFill} />
+            
+            {/* Centered Modal */}
+            <View style={[styles.tabletModal, { width: Math.min(556, Dimensions.get('window').width * 0.85) }]}>
+              {/* Purple Header */}
+              <View style={styles.tabletHeader}>
+                <Image style={styles.tabletLogo} source={logo} />
+                <ThemedText style={styles.tabletSubtitle}>
+                  Photo Editing • Photo Manipulation • Photo Reshaping
+                </ThemedText>
+              </View>
+
+              {/* White Form Card */}
+              <View style={styles.tabletCard}>
+                {/* Social Buttons Row */}
+                <View style={styles.tabletSocialRow}>
+                  <TouchableOpacity
+                    style={styles.tabletSocialButton}
+                    disabled={isLoading}
+                    onPress={handleGoogleAuth}
+                  >
+                    <Image style={styles.tabletSocialIcon} source={google} />
+                    <Text style={styles.tabletSocialText}>Google</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.tabletSocialButton}
+                    disabled={isLoading}
+                  >
+                    <Image style={styles.tabletSocialIcon} source={facebook} />
+                    <Text style={styles.tabletSocialText}>Facebook</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Divider */}
+                <View style={styles.tabletDividerContainer}>
+                  <View style={styles.tabletDividerLine} />
+                  <View style={styles.tabletDividerTextBg}>
+                    <Text style={styles.tabletDividerText}>or continue with</Text>
+                  </View>
+                </View>
+
+                {/* Email Field */}
+                <Text style={styles.tabletLabel}>Email</Text>
+                <View style={[styles.tabletInputWrapper, isEmailFocused && styles.tabletInputFocused]}>
+                  <Ionicons name="mail-outline" size={18} color="rgba(0,0,0,0.5)" style={styles.tabletInputIcon} />
+                  <TextInput
+                    placeholder="Enter email address"
+                    placeholderTextColor="rgba(0,0,0,0.5)"
+                    value={email}
+                    onChangeText={setEmail}
+                    style={styles.tabletInput}
+                    onFocus={() => setEmailFocused(true)}
+                    onBlur={() => setEmailFocused(false)}
+                    keyboardType="email-address"
+                    editable={!isLoading}
+                  />
+                </View>
+
+                {/* Password Field */}
+                <Text style={styles.tabletLabel}>Password</Text>
+                <View style={[styles.tabletInputWrapper, isPasswordFocused && styles.tabletInputFocused]}>
+                  <Ionicons name="lock-closed-outline" size={18} color="rgba(0,0,0,0.5)" style={styles.tabletInputIcon} />
+                  <TextInput
+                    placeholder="Enter password"
+                    placeholderTextColor="rgba(0,0,0,0.5)"
+                    value={password}
+                    onChangeText={setPassword}
+                    style={styles.tabletInput}
+                    secureTextEntry={!showPassword}
+                    onFocus={() => setPasswordFocused(true)}
+                    onBlur={() => setPasswordFocused(false)}
+                    editable={!isLoading}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    disabled={isLoading}
+                  >
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={18}
+                      color="rgba(0,0,0,0.5)"
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Forgot Password */}
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('ForgotPass')}
+                  style={styles.tabletForgotLink}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.tabletForgotText}>Forgot Password ?</Text>
+                </TouchableOpacity>
+
+                {/* Login Button */}
+                <TouchableOpacity
+                  onPress={handleLogin}
+                  style={styles.tabletLoginButton}
+                  disabled={isLoading}
+                  activeOpacity={isLoading ? 1 : 0.7}
+                >
+                  <Text style={styles.tabletLoginButtonText}>
+                    {isLoading ? 'loggining.....' : 'Login'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Register Link */}
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('Register')}
+                  style={styles.tabletRegisterLink}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.tabletRegisterText}>Register</Text>
+                </TouchableOpacity>
+
+                {/* Terms */}
+                <Text style={styles.tabletTermsText}>
+                  By proceeding you agree with Edit by Mercy's{' '}
+                  <Text style={styles.tabletTermsLink}>terms of use</Text> and{' '}
+                  <Text style={styles.tabletTermsLink}>privacy policy</Text>
+                </Text>
+              </View>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // Mobile Layout (existing)
   return (
     <>
       <KeyboardAvoidingView
@@ -402,4 +548,163 @@ const styles = StyleSheet.create({
   registerLink: { alignItems: 'center' },
   registerText: { color: '#992C55', fontSize: 16 },
   socialRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+  
+  // Tablet Styles
+  tabletContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  tabletModal: {
+    backgroundColor: '#992C55',
+    borderRadius: 30,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 5, height: 5 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  tabletHeader: {
+    paddingTop: 64,
+    paddingBottom: 28,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  tabletLogo: {
+    width: 184,
+    height: 81,
+    marginBottom: 8,
+  },
+  tabletSubtitle: {
+    fontSize: 12,
+    color: '#fff',
+    textAlign: 'center',
+  },
+  tabletCard: {
+    backgroundColor: '#F5F5F7',
+    borderTopLeftRadius: 15,
+    borderTopRightRadius: 15,
+    padding: 20,
+    minHeight: 543,
+  },
+  tabletSocialRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  tabletSocialButton: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    height: 45,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 5,
+  },
+  tabletSocialIcon: {
+    width: 16,
+    height: 16,
+    marginRight: 8,
+  },
+  tabletSocialText: {
+    fontSize: 14,
+    color: '#000',
+  },
+  tabletDividerContainer: {
+    position: 'relative',
+    height: 18,
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  tabletDividerLine: {
+    position: 'absolute',
+    top: 9,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: '#000',
+    opacity: 0.1,
+  },
+  tabletDividerTextBg: {
+    position: 'absolute',
+    left: '50%',
+    top: 0,
+    transform: [{ translateX: -42.5 }],
+    backgroundColor: '#F5F5F7',
+    paddingHorizontal: 5,
+  },
+  tabletDividerText: {
+    fontSize: 10,
+    color: 'rgba(0,0,0,0.5)',
+  },
+  tabletLabel: {
+    fontSize: 14,
+    color: '#000',
+    marginBottom: 8,
+    marginTop: 0,
+  },
+  tabletInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    height: 50,
+    paddingHorizontal: 15,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#fff',
+  },
+  tabletInputFocused: {
+    borderColor: '#992C55',
+  },
+  tabletInputIcon: {
+    marginRight: 8,
+  },
+  tabletInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#000',
+  },
+  tabletForgotLink: {
+    alignSelf: 'flex-end',
+    marginBottom: 20,
+  },
+  tabletForgotText: {
+    fontSize: 14,
+    color: '#992C55',
+  },
+  tabletLoginButton: {
+    backgroundColor: '#992C55',
+    borderRadius: 100,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  tabletLoginButtonText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  tabletRegisterLink: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  tabletRegisterText: {
+    fontSize: 14,
+    color: '#992C55',
+  },
+  tabletTermsText: {
+    fontSize: 12,
+    color: '#000',
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  tabletTermsLink: {
+    color: '#992C55',
+  },
 });
+

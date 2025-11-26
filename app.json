@@ -2,8 +2,8 @@
   "expo": {
     "name": "EB Mercy",
     "slug": "ebmercy",
-    "version": "1.0.0",
-    "orientation": "portrait",
+    "version": "1.1.0",
+    "orientation": "default",
     "icon": "./assets/logo.jpg",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -15,7 +15,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.hmstech11.mercynative"
+      "bundleIdentifier": "com.editsbymercy.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "googleServicesFile": "./google-service.json",
@@ -29,7 +32,7 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-      "package": "com.hmstech11.mercynative"
+      "package": "com.editsbymercy.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"

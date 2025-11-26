@@ -28,7 +28,7 @@ const CategoryTwoModal = ({ visible, onClose, onNext, onPrevious, chat_id, user_
 
   const handleSelect = (key, value) => {
     if (!viewOnly) {
-      setAnswers((prev) => ({ ...prev, [key]: value }));
+    setAnswers((prev) => ({ ...prev, [key]: value }));
     }
   };
 

@@ -129,7 +129,7 @@ const LabelPill = ({ label }) => (
   </View>
 );
 
-const ChatScreen = () => {
+const ChatScreen = ({ onChatSelect, onFirstChatReady, isTabletSplitView = false }) => {
   const [peerTab, setPeerTab] = useState('Customer');
   const [serviceModalVisible, setServiceModalVisible] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState('All');
@@ -149,6 +149,7 @@ const ChatScreen = () => {
   const [userDetail, setUserDetail] = useState({});
   const [userRole, setUserRole] = useState('');
   const [createLabelVisible, setCreateLabelVisible] = useState(false);
+  const [deletingChatId, setDeletingChatId] = useState(null);
 
   const navigation = useNavigation();
   const queryClient = useQueryClient();
@@ -393,6 +394,8 @@ const ChatScreen = () => {
 
   // ---------- label / modal actions ----------
   const openModal = (chat) => {
+    // Don't open modal if a deletion is in progress
+    if (deletingChatId) return;
     setSelectedChat(chat);
     setModalVisible(true);
     Animated.timing(slideAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
@@ -487,6 +490,21 @@ const ChatScreen = () => {
     return filtered;
   }, [chats, selectedCategory, selectedStatus, selectedLabel, dateSort, search, peerTab, userRole, labels]);
 
+  // Auto-select first chat in tablet split view mode
+  useEffect(() => {
+    if (isTabletSplitView && onFirstChatReady && filteredChats.length > 0) {
+      const firstChat = filteredChats[0];
+      const chatData = {
+        chat_id: firstChat.id,
+        userRole: 'agent',
+        user: firstChat.name,
+        agent: { name: firstChat.name, image: firstChat.image, id: firstChat.agentDetails?.id },
+        service: firstChat.service || 'General',
+      };
+      onFirstChatReady(chatData);
+    }
+  }, [filteredChats, isTabletSplitView, onFirstChatReady]);
+
   const assignAgentAndNavigate = async (serviceName, navigation, closeFn) => {
     const ok = await confirmAction('Confirm Service', `Do you want to proceed with "${serviceName}"?`);
     if (!ok) return;
@@ -530,12 +548,22 @@ const ChatScreen = () => {
 
   // Delete chat function
   const deleteChat = async (chatId) => {
+    // Prevent concurrent deletions
+    if (deletingChatId) return;
+    
     try {
+      setDeletingChatId(chatId);
       const token = await AsyncStorage.getItem('token');
       if (!token) {
+        setDeletingChatId(null);
         alert('You must be logged in.');
         return;
       }
+
+      // Optimistically remove chat from UI immediately
+      queryClient.setQueryData(['chats'], (old = []) => 
+        old.filter(chat => String(chat.id) !== String(chatId))
+      );
 
       const response = await axios.post(
         API.DELETE_CHAT(chatId),
@@ -550,14 +578,20 @@ const ChatScreen = () => {
       );
 
       if (response.data.status === 'success') {
-        // Refresh the chat list
+        // Refresh the chat list to ensure consistency
         queryClient.invalidateQueries({ queryKey: ['chats'] });
-        alert('Chat deleted successfully.');
+        setDeletingChatId(null);
       } else {
+        // Revert optimistic update on failure
+        queryClient.invalidateQueries({ queryKey: ['chats'] });
+        setDeletingChatId(null);
         alert('Failed to delete chat.');
       }
     } catch (error) {
       console.error('Error deleting chat:', error);
+      // Revert optimistic update on error
+      queryClient.invalidateQueries({ queryKey: ['chats'] });
+      setDeletingChatId(null);
       alert('Failed to delete chat. Please try again.');
     }
   };
@@ -575,7 +609,10 @@ const ChatScreen = () => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => deleteChat(chat.id),
+          onPress: () => {
+            closeModal(); // Close modal immediately
+            deleteChat(chat.id);
+          },
         },
       ]
     );
@@ -709,13 +746,21 @@ const ChatScreen = () => {
               style={styles.chatCard}
               onLongPress={() => openModal(chat)}
               onPress={() => {
-                navigation.navigate('Chat', {
+                const chatData = {
                   chat_id: chat.id,
                   userRole: 'agent',
                   user: chat.name,
-                  agent: { name: chat.name, image: chat.image,id: chat.agentDetails.id },
+                  agent: { name: chat.name, image: chat.image, id: chat.agentDetails.id },
                   service: chat.service || 'General',
-                });
+                };
+                
+                if (isTabletSplitView && onChatSelect) {
+                  // For tablet split view, call callback instead of navigating
+                  onChatSelect(chatData);
+                } else {
+                  // For mobile, navigate normally
+                  navigation.navigate('Chat', chatData);
+                }
               }}
             >
               <Image source={chat.image} style={styles.chatAvatar} />

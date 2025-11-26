@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import ThemedText from '../../components/ThemedText';
+import useIsTablet from '../../hooks/useIsTablet';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -55,6 +56,7 @@ const getStatusStyle = (status) => {
 const OrderDetails = () => {
   const navigation = useNavigation();
   const route = useRoute();
+  const isTablet = useIsTablet();
   const { order } = route.params || {};
   console.log("order", order)
 
@@ -87,16 +89,18 @@ const { icon, label, bgColor } = getIconInfo(order.service_type);
   return (
     <View style={styles.container}>
       {/* Top Header */}
-      <View style={styles.topSection}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={28} color="#fff" />
-        </TouchableOpacity>
-        <ThemedText style={{ color: '#fff', fontSize: 15 }}>My Order</ThemedText>
+      <View style={[styles.topSection, isTablet && styles.tabletTopSection]}>
+        {!isTablet && (
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={28} color="#fff" />
+          </TouchableOpacity>
+        )}
+        <ThemedText style={[styles.headerSubtitle, isTablet && styles.tabletHeaderSubtitle]}>My Order</ThemedText>
 
 <View style={[styles.iconCircle, { backgroundColor: bgColor }]}>
           <Image source={icon} style={{ width: 36, height: 36 }} resizeMode="contain" />
         </View>
-        <ThemedText style={styles.orderType}>{`Photo ${label}`}</ThemedText>
+        <ThemedText style={[styles.orderType, isTablet && styles.tabletOrderType]}>{`Photo ${label}`}</ThemedText>
       </View>
 
       {/* White Card */}
@@ -114,8 +118,8 @@ const { icon, label, bgColor } = getIconInfo(order.service_type);
                   isLast && styles.bottomRow,
                 ]}
               >
-                <ThemedText style={styles.label}>{item.label}</ThemedText>
-                <ThemedText style={[styles.value, item.label === 'Status' && getStatusStyle(item.value)]}>
+                <ThemedText style={[styles.label, isTablet && styles.tabletLabel]}>{item.label}</ThemedText>
+                <ThemedText style={[styles.value, isTablet && styles.tabletValue, item.label === 'Status' && getStatusStyle(item.value)]}>
                   {item.value}
                 </ThemedText>
               </View>
@@ -142,7 +146,7 @@ const { icon, label, bgColor } = getIconInfo(order.service_type);
     })
   }
 >
-  <ThemedText style={styles.chatBtnText}>View Chat</ThemedText>
+  <ThemedText style={[styles.chatBtnText, isTablet && styles.tabletChatBtnText]}>View Chat</ThemedText>
 </TouchableOpacity>
 
     </View>
@@ -167,6 +171,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 20,
     top: 70,
+  },
+  headerSubtitle: {
+    color: '#fff',
+    fontSize: 15,
   },
   orderType: {
     color: '#fff',
@@ -237,6 +245,31 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Tablet-specific styles with increased font sizes
+  tabletTopSection: {
+    paddingTop: 40,
+    paddingBottom: 60,
+  },
+  tabletHeaderSubtitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  tabletOrderType: {
+    fontSize: 26,
+    fontWeight: '700',
+    marginTop: 20,
+  },
+  tabletLabel: {
+    fontSize: 16,
+  },
+  tabletValue: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  tabletChatBtnText: {
+    fontSize: 18,
+    fontWeight: '700',
   },
 });
 

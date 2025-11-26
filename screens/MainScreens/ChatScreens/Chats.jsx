@@ -8,7 +8,7 @@ import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Linking from 'expo-linking';
-import { ActivityIndicator, ImageBackground, Pressable, InteractionManager } from 'react-native';
+import { ActivityIndicator, ImageBackground, Pressable, InteractionManager, Animated } from 'react-native';
 import ThemedText from '../../../components/ThemedText';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,7 +20,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Sharing from 'expo-sharing';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Mime from 'react-native-mime-types';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import useUserOnlineStatus from '../../../hooks/useUserOnlineStatus';
 import useHeartbeat from '../../../hooks/useHeartbeat';
 import OnlineIndicator from '../../../components/OnlineIndicator';
@@ -150,7 +150,27 @@ const ChatScreen = () => {
     ]);
     const route = useRoute();
     const { chat_id, scrollToBottom: navWantsBottom } = route.params || {};
-    console.log("chatsid ",chat_id)
+    console.log("chatsid ", chat_id)
+    const insets = useSafeAreaInsets();
+    const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+    // Track keyboard visibility
+    useEffect(() => {
+        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+        const hideEvent = 'keyboardDidHide'; // Use DidHide on both for stability
+
+        const showSubscription = Keyboard.addListener(showEvent, () => {
+            setIsKeyboardVisible(true);
+        });
+        const hideSubscription = Keyboard.addListener(hideEvent, () => {
+            setIsKeyboardVisible(false);
+        });
+
+        return () => {
+            showSubscription.remove();
+            hideSubscription.remove();
+        };
+    }, []);
     const [messageActionModalVisible, setMessageActionModalVisible] = useState(false);
     const [editMessageModalVisible, setEditMessageModalVisible] = useState(false);
     const [selectedMessage, setSelectedMessage] = useState(null);
@@ -165,7 +185,7 @@ const ChatScreen = () => {
     const [questionnaireVisible, setQuestionnaireVisible] = useState(false);
     const [viewingAsAgent, setViewingAsAgent] = useState(false); // Agent viewing user's answers
     const [userAnswers, setUserAnswers] = useState({}); // Store fetched user answers
-    
+
     // Dynamic questionnaire data (fetched from backend)
     const [dynamicQuestionnaireData, setDynamicQuestionnaireData] = useState(questionnaireData); // Use hardcoded as fallback
 
@@ -182,31 +202,31 @@ const ChatScreen = () => {
         console.log('👨‍💼 Agent/Other User from params:', agent);
         console.log('👤 Current User:', user);
         console.log('🎭 Current User Role:', userRole);
-        
+
         // If current user is support/agent, they want to see the customer's status
         // Use agent.id from route params first (it's actually the customer ID), then confirm with orderDetails
         if (userRole === 'support') {
             const customerId = orderDetails?.user_id || agent?.id;
-            console.log('✅ Agent viewing customer - Using customer ID:', customerId, 
-                       `(source: ${orderDetails?.user_id ? 'orderDetails' : 'route params'})`);
+            console.log('✅ Agent viewing customer - Using customer ID:', customerId,
+                `(source: ${orderDetails?.user_id ? 'orderDetails' : 'route params'})`);
             return customerId;
         }
-        
+
         // If current user is customer, they want to see the agent's status
         // Use agent.id from route params first (it's the actual agent ID), then confirm with orderDetails
         if (userRole === 'user') {
             const agentId = orderDetails?.support_agent_id || agent?.id;
-            console.log('✅ Customer viewing agent - Using agent ID:', agentId, 
-                       `(source: ${orderDetails?.support_agent_id ? 'orderDetails' : 'route params'})`);
+            console.log('✅ Customer viewing agent - Using agent ID:', agentId,
+                `(source: ${orderDetails?.support_agent_id ? 'orderDetails' : 'route params'})`);
             return agentId;
         }
-        
+
         // Fallback if role not yet determined - use agent.id from params or try order details
         const fallbackId = agent?.id || orderDetails?.user_id || orderDetails?.support_agent_id;
         console.log('⚠️ Role not determined yet, using fallback ID:', fallbackId);
         return fallbackId;
     }, [orderDetails, userRole, user, agent?.id]);
-    
+
     const { status: otherUserStatus, loading: statusLoading } = useUserOnlineStatus(otherUserId, 15000); // Refresh every 15 seconds
     useHeartbeat(true, 120000); // Send heartbeat every 2 minutes to keep current user online
 
@@ -632,15 +652,15 @@ const ChatScreen = () => {
         } catch { return fallback; }
     };
     // helper (top of file or above render return)
-const formatNaira = (v) => {
-  const num = Number(v ?? 0);
-  try {
-    return num.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
-  } catch {
-    // Fallback if Intl not available on some Androids
-    return `₦${Math.round(num).toLocaleString()}`;
-  }
-};
+    const formatNaira = (v) => {
+        const num = Number(v ?? 0);
+        try {
+            return num.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' });
+        } catch {
+            // Fallback if Intl not available on some Androids
+            return `₦${Math.round(num).toLocaleString()}`;
+        }
+    };
 
     const downloadImageToGallery = async (uri, filenameHint = 'media', messageId = null) => {
         try {
@@ -658,7 +678,7 @@ const formatNaira = (v) => {
                 localUri = res.uri;
             }
             await MediaLibrary.saveToLibraryAsync(localUri);
-            
+
             // Call API to track download
             if (messageId) {
                 try {
@@ -669,10 +689,10 @@ const formatNaira = (v) => {
                             Accept: 'application/json',
                         },
                     });
-                    
+
                     // Update local state to show checkmark immediately
-                    setMessages(prev => prev.map(msg => 
-                        msg.id === messageId 
+                    setMessages(prev => prev.map(msg =>
+                        msg.id === messageId
                             ? { ...msg, is_downloaded: true }
                             : msg
                     ));
@@ -727,7 +747,7 @@ const formatNaira = (v) => {
                 read: Boolean(msg.is_read || msg.read_at),
                 reply_to_id: msg.reply_to_id || null,
                 reply_preview: msg.reply_preview || msg.reply_to_text || null,
-                payment_order:msg.payment_order || null,
+                payment_order: msg.payment_order || null,
                 isForward: msg.is_forwarded,
             }));
 
@@ -930,9 +950,9 @@ const formatNaira = (v) => {
         if (idx >= 0) {
             // Use scrollToIndex for more reliable scrolling
             try {
-                flatListRef.current?.scrollToIndex({ 
-                    index: idx, 
-                    animated: true, 
+                flatListRef.current?.scrollToIndex({
+                    index: idx,
+                    animated: true,
                     viewPosition: 0.2 // Position message in upper portion of screen
                 });
                 // Highlight after scroll animation completes
@@ -942,17 +962,17 @@ const formatNaira = (v) => {
                 // Fallback to scrollToOffset if scrollToIndex fails
                 const y = itemOffsetsRef.current[key];
                 if (typeof y === 'number') {
-                    flatListRef.current?.scrollToOffset({ 
-                        offset: Math.max(y - 120, 0), 
-                        animated: true 
+                    flatListRef.current?.scrollToOffset({
+                        offset: Math.max(y - 120, 0),
+                        animated: true
                     });
                     setTimeout(doHighlight, 500);
                 } else {
                     // Last resort: scroll to approximate position
                     const approximateOffset = idx * 100; // Rough estimate
-                    flatListRef.current?.scrollToOffset({ 
-                        offset: approximateOffset, 
-                        animated: true 
+                    flatListRef.current?.scrollToOffset({
+                        offset: approximateOffset,
+                        animated: true
                     });
                     setTimeout(doHighlight, 500);
                 }
@@ -962,35 +982,35 @@ const formatNaira = (v) => {
         }
     }, [messages]);
 
-   const TimeWithTicks = ({ item, mine }) => {
-  const delivered = !!item.delivered;
-  const read = !!item.read;
+    const TimeWithTicks = ({ item, mine }) => {
+        const delivered = !!item.delivered;
+        const read = !!item.read;
 
-  let icon = 'checkmark';
-  if (delivered) icon = 'checkmark-done-outline';
-  if (read) icon = 'checkmark-done';
+        let icon = 'checkmark';
+        if (delivered) icon = 'checkmark-done-outline';
+        if (read) icon = 'checkmark-done';
 
-  // decide color
-  const iconColor = read
-    ? '#1DA1F2' // blue for read
-    : mine
-    ? '#fff'    // white if it's mine
-    : '#666';   // grey if it's not mine
+        // decide color
+        const iconColor = read
+            ? '#1DA1F2' // blue for read
+            : mine
+                ? '#fff'    // white if it's mine
+                : '#666';   // grey if it's not mine
 
-  return (
-    <View style={[styles.metaRow, mine ? styles.metaRight : styles.metaLeft]}>
-      <Text style={[styles.metaTime, mine ? styles.timeRight : styles.timeLeft]}>
-        {item.time}
-      </Text>
-      <Ionicons
-        name={icon}
-        size={14}
-        color={iconColor}
-        style={{ marginLeft: 6 }}
-      />
-    </View>
-  );
-};
+        return (
+            <View style={[styles.metaRow, mine ? styles.metaRight : styles.metaLeft]}>
+                <Text style={[styles.metaTime, mine ? styles.timeRight : styles.timeLeft]}>
+                    {item.time}
+                </Text>
+                <Ionicons
+                    name={icon}
+                    size={14}
+                    color={iconColor}
+                    style={{ marginLeft: 6 }}
+                />
+            </View>
+        );
+    };
 
 
     const sendFileMessage = async ({
@@ -1263,7 +1283,7 @@ const formatNaira = (v) => {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 console.log('📊 Progress API Response:', JSON.stringify(res.data, null, 2));
-                
+
                 if (res?.data?.status === 'success') {
                     // Handle both response formats: direct data or nested in data property
                     const progressInfo = res.data.data || res.data;
@@ -1291,13 +1311,13 @@ const formatNaira = (v) => {
         try {
             const token = await AsyncStorage.getItem('token');
             const res = await axios.get(API.GET_QUESTIONNAIRE_ANSWERS(chat_id), {
-                headers: { 
+                headers: {
                     Authorization: `Bearer ${token}`,
                     Accept: 'application/json'
                 },
             });
             console.log('📋 User Answers Response:', JSON.stringify(res.data, null, 2));
-            
+
             if (res?.data?.status === 'success') {
                 const answersData = res.data.data || res.data;
                 setUserAnswers(answersData.answers || {});
@@ -1318,7 +1338,7 @@ const formatNaira = (v) => {
         console.log('👁️ Agent viewing user answers...');
         setViewingAsAgent(true);
         const answers = await fetchUserAnswers();
-        
+
         // Determine which section to start based on progress
         const completedSections = progressData?.completed_sections || 0;
         if (completedSections < 1) {
@@ -1328,7 +1348,7 @@ const formatNaira = (v) => {
         } else {
             setCurrentCategoryIndex(0); // Always start from first section
         }
-        
+
         setQuestionnaireVisible(true);
     };
 
@@ -1368,10 +1388,10 @@ const formatNaira = (v) => {
                     <View
                         style={[
                             {
-                            paddingBottom: 20,
-                            backgroundColor: isMyMsgImage ? '#992C55' : '#E7E7E7',
-                            borderRadius: 10,
-                            position: 'relative'
+                                paddingBottom: 20,
+                                backgroundColor: isMyMsgImage ? '#992C55' : '#E7E7E7',
+                                borderRadius: 10,
+                                position: 'relative'
                             },
                             highlightId === String(item.id) && styles.highlightedMessage
                         ]}
@@ -1392,52 +1412,80 @@ const formatNaira = (v) => {
                             </TouchableOpacity>
                         )}
 
-                        <Pressable
-                            onPress={() => { setPreviewImages([item]); setImagePreviewVisible(true); }}
-                            onLongPress={() => { setSelectedMessage(item); setMessageActionModalVisible(true); }}
-                            delayLongPress={300}
-                            hitSlop={8}
-                            android_ripple={{ foreground: true }}
-                            style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
-                        >
-                            <View>
-                                <Image
-                                    source={{ uri: item.image }}
-                                    style={{
-                                        width: 200,
-                                        height: 200,
-                                        borderRadius: 10,
-                                        borderWidth: 5,
-                                        borderColor: '#992c55',
-                                    }}
-                                    resizeMode="cover"
-                                />
-
-                                <TouchableOpacity
-                                    onPress={() => downloadImageToGallery(item.image, `image_${Date.now()}`, item.id)}
-                                    style={styles.mediaDownloadBtn}
-                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                >
-                                    <Ionicons
-                                        name={item.is_downloaded ? 'checkmark-outline' : 'download-outline'}
-                                        size={18}
-                                        color="#fff"
-                                    />
-                                </TouchableOpacity>
-
-                                {item.status === 'uploading' && (
-                                    <View style={styles.uploadOverlay}>
-                                        <Text style={styles.uploadText}>
-                                            {Math.round((item.uploadProgress || 0) * 100)}%
-                                        </Text>
-                                    </View>
-                                )}
-
+                        {item.is_deleted ? (
+                            <View style={{ 
+                                padding: 12, 
+                                minHeight: 50, 
+                                justifyContent: 'center',
+                                backgroundColor: isMyMsgImage ? '#992C55' : '#E7E7E7',
+                                borderRadius: 10
+                            }}>
+                                <ThemedText style={[
+                                    { fontSize: 14, fontStyle: 'italic', opacity: 0.7 },
+                                    { color: isMyMsgImage ? '#fff' : '#666' }
+                                ]}>
+                                    This message was deleted
+                                </ThemedText>
                                 <View style={{ position: 'absolute', right: 8, bottom: 6 }}>
                                     <TimeWithTicks item={item} mine={isMyMsgImage} />
                                 </View>
                             </View>
-                        </Pressable>
+                        ) : (
+                            <Pressable
+                                onPress={() => { 
+                                    if (!item.is_deleted) {
+                                        setPreviewImages([item]); 
+                                        setImagePreviewVisible(true); 
+                                    }
+                                }}
+                                onLongPress={() => {
+                                    setSelectedMessage(item);
+                                    setMessageActionModalVisible(true);
+                                }}
+                                delayLongPress={300}
+                                hitSlop={8}
+                                android_ripple={{ foreground: true }}
+                                style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
+                            >
+                                <View>
+                                    <Image
+                                        source={{ uri: item.image }}
+                                        style={{
+                                            width: 200,
+                                            height: 200,
+                                            borderRadius: 10,
+                                            borderWidth: 5,
+                                            borderColor: '#992c55',
+                                        }}
+                                        resizeMode="cover"
+                                    />
+
+                                    <TouchableOpacity
+                                        onPress={() => downloadImageToGallery(item.image, `image_${Date.now()}`, item.id)}
+                                        style={styles.mediaDownloadBtn}
+                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                    >
+                                        <Ionicons
+                                            name={item.is_downloaded ? 'checkmark-outline' : 'download-outline'}
+                                            size={18}
+                                            color="#fff"
+                                        />
+                                    </TouchableOpacity>
+
+                                    {item.status === 'uploading' && (
+                                        <View style={styles.uploadOverlay}>
+                                            <Text style={styles.uploadText}>
+                                                {Math.round((item.uploadProgress || 0) * 100)}%
+                                            </Text>
+                                        </View>
+                                    )}
+
+                                    <View style={{ position: 'absolute', right: 8, bottom: 6 }}>
+                                        <TimeWithTicks item={item} mine={isMyMsgImage} />
+                                    </View>
+                                </View>
+                            </Pressable>
+                        )}
                     </View>
                 </View>
             );
@@ -1447,9 +1495,11 @@ const formatNaira = (v) => {
             return (
                 <TouchableOpacity
                     onLongPress={() => {
-                        setForwardedMessage(item);
-                        navigation.navigate('ForwardChat', { forwardMessage: item });
+                        if (item.is_deleted) return; // Don't show actions for deleted messages
+                        setSelectedMessage(item);
+                        setMessageActionModalVisible(true);
                     }}
+                    delayLongPress={300}
                 >
                     <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg]}
                         onLayout={(e) => {
@@ -1472,15 +1522,29 @@ const formatNaira = (v) => {
                             </TouchableOpacity>
                         )}
 
-                        <TouchableOpacity onPress={() => openDocument(item.file || item.document, item.name || `file_${item.id}`)}>
+                        {item.is_deleted ? (
                             <View style={[
-                                { padding: 10, backgroundColor: '#eee', borderRadius: 10 },
-                                highlightId === String(item.id) && styles.highlightedMessage
+                                { padding: 12, minHeight: 50, justifyContent: 'center', borderRadius: 10 },
+                                { backgroundColor: isMyMessage ? '#992C55' : '#E7E7E7' }
                             ]}>
-                                <Ionicons name="document-text-outline" size={24} color="#555" />
-                                <ThemedText>{item.name}</ThemedText>
+                                <ThemedText style={[
+                                    { fontSize: 14, fontStyle: 'italic', opacity: 0.7 },
+                                    { color: isMyMessage ? '#fff' : '#666' }
+                                ]}>
+                                    This message was deleted
+                                </ThemedText>
                             </View>
-                        </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity onPress={() => openDocument(item.file || item.document, item.name || `file_${item.id}`)}>
+                                <View style={[
+                                    { padding: 10, backgroundColor: '#eee', borderRadius: 10 },
+                                    highlightId === String(item.id) && styles.highlightedMessage
+                                ]}>
+                                    <Ionicons name="document-text-outline" size={24} color="#555" />
+                                    <ThemedText>{item.name}</ThemedText>
+                                </View>
+                            </TouchableOpacity>
+                        )}
 
                     </View>
                     <TimeWithTicks item={item} mine={isMyMessage} />
@@ -1492,9 +1556,11 @@ const formatNaira = (v) => {
             return (
                 <TouchableOpacity
                     onLongPress={() => {
-                        setForwardedMessage(item);
-                        navigation.navigate('ForwardChat', { forwardMessage: item });
+                        if (item.is_deleted) return; // Don't show actions for deleted messages
+                        setSelectedMessage(item);
+                        setMessageActionModalVisible(true);
                     }}
+                    delayLongPress={300}
                 >
                     <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg]}
                         onLayout={(e) => {
@@ -1517,18 +1583,33 @@ const formatNaira = (v) => {
                             </TouchableOpacity>
                         )}
 
-                        <View style={[
-                            isMyMessage ? styles.myBubble : styles.otherBubble,
-                            highlightId === String(item.id) && styles.highlightedMessage
-                        ]}>
-                            <TouchableOpacity onPress={() => playAudio(item.audio, item.id)}>
-                                <Ionicons
-                                    name={playingAudioId === item.id && isAudioPlaying ? 'pause' : 'play'}
-                                    size={24}
-                                    color="#fff"
-                                />
-                            </TouchableOpacity>
-                        </View>
+                        {item.is_deleted ? (
+                            <View style={[
+                                { padding: 12, minHeight: 50, justifyContent: 'center', borderRadius: 10 },
+                                isMyMessage ? styles.myBubble : styles.otherBubble,
+                                highlightId === String(item.id) && styles.highlightedMessage
+                            ]}>
+                                <ThemedText style={[
+                                    { fontSize: 14, fontStyle: 'italic', opacity: 0.7 },
+                                    { color: isMyMessage ? '#fff' : '#666' }
+                                ]}>
+                                    This message was deleted
+                                </ThemedText>
+                            </View>
+                        ) : (
+                            <View style={[
+                                isMyMessage ? styles.myBubble : styles.otherBubble,
+                                highlightId === String(item.id) && styles.highlightedMessage
+                            ]}>
+                                <TouchableOpacity onPress={() => playAudio(item.audio, item.id)}>
+                                    <Ionicons
+                                        name={playingAudioId === item.id && isAudioPlaying ? 'pause' : 'play'}
+                                        size={24}
+                                        color="#fff"
+                                    />
+                                </TouchableOpacity>
+                            </View>
+                        )}
 
                     </View>
                     <TimeWithTicks item={item} mine={isMyMessage} />
@@ -1536,125 +1617,125 @@ const formatNaira = (v) => {
             );
         }
 
-   if (item.type === 'payment') {
-  const po = (item.isForward && item.payment_order) ? item.payment_order : orderDetails;
-  const isPaid = po?.payment_status === 'success';
+        if (item.type === 'payment') {
+            const po = (item.isForward && item.payment_order) ? item.payment_order : orderDetails;
+            const isPaid = po?.payment_status === 'success';
 
-  return (
-    <TouchableOpacity
-      onLongPress={() => {
-        setForwardedMessage(item);
-        navigation.navigate('ForwardChat', { forwardMessage: item });
-      }}
-    >
-      <View style={[styles.msgRow, item.sender === user?.id ? styles.rightMsg : styles.leftMsg]}
-        onLayout={(e) => {
-          const y = e.nativeEvent.layout.y;
-          itemOffsetsRef.current[String(item.id)] = y;
-        }}
-      >
-        {item.reply_to_id && (
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => scrollToMessage(item.reply_to_id)}
-            style={{
-              backgroundColor: (item.sender === user?.id) ? 'rgba(255,255,255,0.12)' : '#eee',
-              padding: 8, borderLeftWidth: 3, borderLeftColor: '#992C55',
-              borderRadius: 8, marginBottom: 6
-            }}
-          >
-            <ThemedText numberOfLines={1} style={{ fontSize: 12, color: (item.sender === user?.id) ? '#fff' : '#444' }}>
-              {item.reply_preview || 'Replied message'}
-            </ThemedText>
-          </TouchableOpacity>
-        )}
-
-        <View style={styles.paymentCard}>
-          <View style={styles.paymentHeader}>
-            <Ionicons name="card-outline" size={20} color="#fff" />
-            <ThemedText style={styles.paymentTitle}>Payment Order</ThemedText>
-
-            <View style={styles.paymentStatus}>
-              <ThemedText
-                style={[
-                  styles.paymentStatusText,
-                  isPaid && { color: 'green' },
-                ]}
-              >
-                {po?.payment_status ?? '—'}
-              </ThemedText>
-            </View>
-          </View>
-
-          <View style={{ padding: 16, backgroundColor: '#fff', borderRadius: 10, elevation: 1, zIndex: 1, marginTop: -20 }}>
-            <View style={styles.paymentRow}>
-              <Text style={styles.label}>No of photos</Text>
-              <Text>{po?.no_of_photos ?? '—'}</Text>
-            </View>
-
-            <View style={styles.paymentRow}>
-              <Text style={styles.label}>Category</Text>
-              <Text>{po?.service_type ?? '—'}</Text>
-            </View>
-
-            <View style={[styles.paymentRow, { borderBottomRightRadius: 10, borderBottomLeftRadius: 10 }]}>
-              <Text style={styles.label}>Amount</Text>
-              <Text style={{ fontWeight: 'bold' }}>
-                {formatNaira(po?.total_amount)}
-              </Text>
-            </View>
-          </View>
-
-    {!item.isForward &&       <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 10 }}>
-            {/* Customer actions */}
-            {userRole === 'user' && !isPaid && (
-              <TouchableOpacity
-                onPress={launchPayment}
-                style={{
-                  backgroundColor: '#992C55',
-                  paddingVertical: 14,
-                  paddingHorizontal: 100,
-                  borderRadius: 30,
-                }}
-              >
-                <ThemedText style={{ color: '#fff', fontWeight: '600' }}>Make Payment</ThemedText>
-              </TouchableOpacity>
-            )}
-
-            {/* Support actions */}
-            {userRole === 'support' && !isPaid && (
-              <>
+            return (
                 <TouchableOpacity
-                //   onPress={refreshOrderStatus /* wire this */}
-                  style={{
-                    backgroundColor: '#992C55',
-                    paddingVertical: 15,
-                    paddingHorizontal: 60,
-                    borderRadius: 30,
-                  }}
+                    onLongPress={() => {
+                        setForwardedMessage(item);
+                        navigation.navigate('ForwardChat', { forwardMessage: item });
+                    }}
                 >
-                  <ThemedText style={{ color: '#fff', fontWeight: '600' }}>Refresh</ThemedText>
-                </TouchableOpacity>
+                    <View style={[styles.msgRow, item.sender === user?.id ? styles.rightMsg : styles.leftMsg]}
+                        onLayout={(e) => {
+                            const y = e.nativeEvent.layout.y;
+                            itemOffsetsRef.current[String(item.id)] = y;
+                        }}
+                    >
+                        {item.reply_to_id && (
+                            <TouchableOpacity
+                                activeOpacity={0.7}
+                                onPress={() => scrollToMessage(item.reply_to_id)}
+                                style={{
+                                    backgroundColor: (item.sender === user?.id) ? 'rgba(255,255,255,0.12)' : '#eee',
+                                    padding: 8, borderLeftWidth: 3, borderLeftColor: '#992C55',
+                                    borderRadius: 8, marginBottom: 6
+                                }}
+                            >
+                                <ThemedText numberOfLines={1} style={{ fontSize: 12, color: (item.sender === user?.id) ? '#fff' : '#444' }}>
+                                    {item.reply_preview || 'Replied message'}
+                                </ThemedText>
+                            </TouchableOpacity>
+                        )}
 
-                <TouchableOpacity
-                //   onPress={cancelOrder /* wire this */}
-                  style={{
-                    backgroundColor: '#ccc',
-                    paddingVertical: 15,
-                    paddingHorizontal: 60,
-                    borderRadius: 30,
-                  }}
-                >
-                  <ThemedText style={{ color: '#000', fontWeight: '600' }}>Cancel</ThemedText>
+                        <View style={styles.paymentCard}>
+                            <View style={styles.paymentHeader}>
+                                <Ionicons name="card-outline" size={20} color="#fff" />
+                                <ThemedText style={styles.paymentTitle}>Payment Order</ThemedText>
+
+                                <View style={styles.paymentStatus}>
+                                    <ThemedText
+                                        style={[
+                                            styles.paymentStatusText,
+                                            isPaid && { color: 'green' },
+                                        ]}
+                                    >
+                                        {po?.payment_status ?? '—'}
+                                    </ThemedText>
+                                </View>
+                            </View>
+
+                            <View style={{ padding: 16, backgroundColor: '#fff', borderRadius: 10, elevation: 1, zIndex: 1, marginTop: -20 }}>
+                                <View style={styles.paymentRow}>
+                                    <Text style={styles.label}>No of photos</Text>
+                                    <Text>{po?.no_of_photos ?? '—'}</Text>
+                                </View>
+
+                                <View style={styles.paymentRow}>
+                                    <Text style={styles.label}>Category</Text>
+                                    <Text>{po?.service_type ?? '—'}</Text>
+                                </View>
+
+                                <View style={[styles.paymentRow, { borderBottomRightRadius: 10, borderBottomLeftRadius: 10 }]}>
+                                    <Text style={styles.label}>Amount</Text>
+                                    <Text style={{ fontWeight: 'bold' }}>
+                                        {formatNaira(po?.total_amount)}
+                                    </Text>
+                                </View>
+                            </View>
+
+                            {!item.isForward && <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 10 }}>
+                                {/* Customer actions */}
+                                {userRole === 'user' && !isPaid && (
+                                    <TouchableOpacity
+                                        onPress={launchPayment}
+                                        style={{
+                                            backgroundColor: '#992C55',
+                                            paddingVertical: 14,
+                                            paddingHorizontal: 100,
+                                            borderRadius: 30,
+                                        }}
+                                    >
+                                        <ThemedText style={{ color: '#fff', fontWeight: '600' }}>Make Payment</ThemedText>
+                                    </TouchableOpacity>
+                                )}
+
+                                {/* Support actions */}
+                                {userRole === 'support' && !isPaid && (
+                                    <>
+                                        <TouchableOpacity
+                                            //   onPress={refreshOrderStatus /* wire this */}
+                                            style={{
+                                                backgroundColor: '#992C55',
+                                                paddingVertical: 15,
+                                                paddingHorizontal: 60,
+                                                borderRadius: 30,
+                                            }}
+                                        >
+                                            <ThemedText style={{ color: '#fff', fontWeight: '600' }}>Refresh</ThemedText>
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity
+                                            //   onPress={cancelOrder /* wire this */}
+                                            style={{
+                                                backgroundColor: '#ccc',
+                                                paddingVertical: 15,
+                                                paddingHorizontal: 60,
+                                                borderRadius: 30,
+                                            }}
+                                        >
+                                            <ThemedText style={{ color: '#000', fontWeight: '600' }}>Cancel</ThemedText>
+                                        </TouchableOpacity>
+                                    </>
+                                )}
+                            </View>}
+                        </View>
+                    </View>
                 </TouchableOpacity>
-              </>
-            )}
-          </View>}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}
+            );
+        }
 
 
         if (item.type === 'system') {
@@ -1786,13 +1867,13 @@ const formatNaira = (v) => {
                                 )}
                                 {user?.role == 'support' && (
                                     <>
-                                        <TouchableOpacity 
+                                        <TouchableOpacity
                                             style={[styles.qStartBtn, { flex: 1, marginRight: 8 }]}
                                             onPress={handleViewAnswers}
                                         >
                                             <ThemedText style={styles.qStartBtnText}>View Answers</ThemedText>
                                         </TouchableOpacity>
-                                        <TouchableOpacity 
+                                        <TouchableOpacity
                                             style={[styles.qCloseBtn, { flex: 1 }]}
                                             onPress={() => {
                                                 // Just a placeholder for now - can add hide functionality later
@@ -1833,61 +1914,81 @@ const formatNaira = (v) => {
                             }}
                         >
                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <ThemedText numberOfLines={1} style={{ fontSize: 12, color: mine ? '#fff' : '#444', flex: 1 }}>
-                                {item.reply_preview || 'Replied message'}
-                            </ThemedText>
-                              <Ionicons name="arrow-up" size={12} color={mine ? '#fff' : '#666'} style={{ marginLeft: 4 }} />
+                                <ThemedText numberOfLines={1} style={{ fontSize: 12, color: mine ? '#fff' : '#444', flex: 1 }}>
+                                    {item.reply_preview || 'Replied message'}
+                                </ThemedText>
+                                <Ionicons name="arrow-up" size={12} color={mine ? '#fff' : '#666'} style={{ marginLeft: 4 }} />
                             </View>
                         </TouchableOpacity>
                     )}
 
-                    <TouchableOpacity
-                        activeOpacity={0.9}
-                        onLongPress={() => { setSelectedMessage(item); setMessageActionModalVisible(true); }}
-                        delayLongPress={300}
-                        style={{ position: 'relative' }}
-                    >
-                        <Video
-                            source={{ uri: item.video }}
-                            style={{ width: 220, height: 220, borderRadius: 10, backgroundColor: '#000' }}
-                            resizeMode="cover"
-                            shouldPlay={false}
-                            useNativeControls={false}
-                            isLooping={false}
-                        />
-
-                        <TouchableOpacity
-                            onPress={() => item?.video && setVideoPreview({ visible: true, uri: item.video })}
-                            style={styles.videoPlayBtn}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                            <Ionicons name="play" size={22} color="#fff" />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            onPress={() => downloadImageToGallery(item.video, `video_${Date.now()}`, item.id)}
-                            style={styles.mediaDownloadBtn}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                            <Ionicons
-                                name={item.is_downloaded ? 'checkmark-outline' : 'download-outline'}
-                                size={18}
-                                color="#fff"
-                            />
-                        </TouchableOpacity>
-
-                        {item.status === 'uploading' && (
-                            <View style={styles.uploadOverlay}>
-                                <Text style={styles.uploadText}>
-                                    {Math.round((item.uploadProgress || 0) * 100)}%
-                                </Text>
+                    {item.is_deleted ? (
+                        <View style={[
+                            { padding: 12, minHeight: 50, justifyContent: 'center', borderRadius: 10 },
+                            { backgroundColor: mine ? '#992C55' : '#E7E7E7' }
+                        ]}>
+                            <ThemedText style={[
+                                { fontSize: 14, fontStyle: 'italic', opacity: 0.7 },
+                                { color: mine ? '#fff' : '#666' }
+                            ]}>
+                                This message was deleted
+                            </ThemedText>
+                            <View style={{ position: 'absolute', right: 8, bottom: 6 }}>
+                                <TimeWithTicks item={item} mine={mine} />
                             </View>
-                        )}
-
-                        <View style={{ position: 'absolute', right: 8, bottom: 6 }}>
-                            <TimeWithTicks item={item} mine={mine} />
                         </View>
-                    </TouchableOpacity>
+                    ) : (
+                        <TouchableOpacity
+                            activeOpacity={0.9}
+                            onLongPress={() => {
+                                setSelectedMessage(item);
+                                setMessageActionModalVisible(true);
+                            }}
+                            delayLongPress={300}
+                            style={{ position: 'relative' }}
+                        >
+                            <Video
+                                source={{ uri: item.video }}
+                                style={{ width: 220, height: 220, borderRadius: 10, backgroundColor: '#000' }}
+                                resizeMode="cover"
+                                shouldPlay={false}
+                                useNativeControls={false}
+                                isLooping={false}
+                            />
+
+                            <TouchableOpacity
+                                onPress={() => item?.video && setVideoPreview({ visible: true, uri: item.video })}
+                                style={styles.videoPlayBtn}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                                <Ionicons name="play" size={22} color="#fff" />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={() => downloadImageToGallery(item.video, `video_${Date.now()}`, item.id)}
+                                style={styles.mediaDownloadBtn}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                                <Ionicons
+                                    name={item.is_downloaded ? 'checkmark-outline' : 'download-outline'}
+                                    size={18}
+                                    color="#fff"
+                                />
+                            </TouchableOpacity>
+
+                            {item.status === 'uploading' && (
+                                <View style={styles.uploadOverlay}>
+                                    <Text style={styles.uploadText}>
+                                        {Math.round((item.uploadProgress || 0) * 100)}%
+                                    </Text>
+                                </View>
+                            )}
+
+                            <View style={{ position: 'absolute', right: 8, bottom: 6 }}>
+                                <TimeWithTicks item={item} mine={mine} />
+                            </View>
+                        </TouchableOpacity>
+                    )}
                 </View>
             );
         }
@@ -1914,10 +2015,10 @@ const formatNaira = (v) => {
                                 borderRadius: 8, marginBottom: 6
                             }}
                         >
-                                <ThemedText numberOfLines={1} style={{ fontSize: 12, color: isMyMessage ? '#444' : '#444', flex: 1 }}>
+                            <ThemedText numberOfLines={1} style={{ fontSize: 12, color: isMyMessage ? '#444' : '#444', flex: 1 }}>
                                 {item.reply_preview || 'Replied message'}
                             </ThemedText>
-                                <Ionicons name="arrow-up" size={12} color={isMyMessage ? '#666' : '#666'} style={{ marginLeft: 4 }} />
+                            <Ionicons name="arrow-up" size={12} color={isMyMessage ? '#666' : '#666'} style={{ marginLeft: 4 }} />
                         </TouchableOpacity>
                     )}
                     <View style={[
@@ -1985,8 +2086,8 @@ const formatNaira = (v) => {
 
             if (response.data.status === 'success') {
                 // Update local state to mark message as deleted
-                setMessages(prev => prev.map(msg => 
-                    msg.id === messageId 
+                setMessages(prev => prev.map(msg =>
+                    msg.id === messageId
                         ? { ...msg, is_deleted: true, text: 'This message was deleted' }
                         : msg
                 ));
@@ -2015,8 +2116,8 @@ const formatNaira = (v) => {
 
             if (response.data.status === 'success') {
                 // Update local state to mark message as edited
-                setMessages(prev => prev.map(msg => 
-                    msg.id === messageId 
+                setMessages(prev => prev.map(msg =>
+                    msg.id === messageId
                         ? { ...msg, text: newText, is_edited: true }
                         : msg
                 ));
@@ -2037,301 +2138,314 @@ const formatNaira = (v) => {
                     source={require('../../../assets/bg.png')}
                     style={styles.background}
                 >
-                    <KeyboardAvoidingView 
-                        style={{ flex: 1 }} 
-                        behavior={Platform.OS === "ios" ? "padding" : undefined}
-                        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+                    <KeyboardAvoidingView
+                        style={{ flex: 1 }}
+                        behavior={Platform.OS === "ios" ? "padding" : "height"}
+                        keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
+                        enabled={true}
                     >
-                    <View style={styles.container}>
-                        {/* Top Bar */}
-                        <View style={styles.topBar}>
-                            <TouchableOpacity onPress={() => navigation.goBack()}>
-                                <Ionicons name="chevron-back" size={28} color="#fff" />
-                            </TouchableOpacity>
+                        <View style={styles.container}>
+                            {/* Top Bar */}
+                            <View style={styles.topBar}>
+                                <TouchableOpacity onPress={() => navigation.goBack()}>
+                                    <Ionicons name="chevron-back" size={28} color="#fff" />
+                                </TouchableOpacity>
 
-                            <TouchableOpacity
-                                onPress={openChatDetails}
-                                activeOpacity={0.85}
-                                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}
-                            >
-                                <View style={{ position: 'relative' }}>
-                                    <Image source={agent.image} style={styles.agentPic} />
-                                    {/* Online indicator dot on profile picture */}
-                                    <OnlineIndicator 
-                                        isOnline={otherUserStatus?.is_online} 
-                                        size={12} 
-                                        position="absolute" 
-                                    />
+                                <TouchableOpacity
+                                    onPress={openChatDetails}
+                                    activeOpacity={0.85}
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}
+                                >
+                                    <View style={{ position: 'relative' }}>
+                                        <Image source={agent.image} style={styles.agentPic} />
+                                        {/* Online indicator dot on profile picture */}
+                                        <OnlineIndicator
+                                            isOnline={otherUserStatus?.is_online}
+                                            size={12}
+                                            position="absolute"
+                                        />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <ThemedText style={styles.agentName}>{agent.name}</ThemedText>
+                                        {/* Show loading or online status */}
+                                        {statusLoading ? (
+                                            <ThemedText style={[styles.online, { color: '#9E9E9E' }]}>Loading...</ThemedText>
+                                        ) : (
+                                            <LastSeenText
+                                                isOnline={otherUserStatus?.is_online}
+                                                lastSeen={otherUserStatus?.last_seen}
+                                                style={styles.online}
+                                            />
+                                        )}
+                                    </View>
+                                </TouchableOpacity>
+
+                                {userRole === 'support' && (
+                                    <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginLeft: 'auto', marginRight: 10 }}>
+                                        <Ionicons name="ellipsis-vertical" size={22} color="#fff" />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                            {isMessagesLoading ? (
+                                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                                    <ActivityIndicator size="large" color="#992C55" />
                                 </View>
-                                <View style={{ flex: 1 }}>
-                                    <ThemedText style={styles.agentName}>{agent.name}</ThemedText>
-                                    {/* Show loading or online status */}
-                                    {statusLoading ? (
-                                        <ThemedText style={[styles.online, { color: '#9E9E9E' }]}>Loading...</ThemedText>
+                            ) : (
+                                <FlatList
+                                    ref={flatListRef}
+                                    data={messages}
+                                    keyExtractor={(item) => String(item.id)}
+                                    renderItem={renderMessage}
+                                    contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+                                    showsVerticalScrollIndicator={false}
+                                    scrollEnabled={true}
+                                    keyboardShouldPersistTaps="handled"
+                                    style={{ flex: 1 }}
+                                    initialNumToRender={15}
+                                    maxToRenderPerBatch={20}
+                                    windowSize={10}
+                                    // ⛔ removed getItemLayout (variable-height rows)
+                                    onScrollToIndexFailed={({ index }) => {
+                                        flatListRef.current?.scrollToEnd({ animated: false });
+                                        setTimeout(() => {
+                                            try {
+                                                flatListRef.current?.scrollToIndex?.({ index, animated: true, viewPosition: 0.5 });
+                                            } catch { }
+                                        }, 60);
+                                    }}
+                                    onLayout={(e) => {
+                                        layoutHeightRef.current = e.nativeEvent.layout.height;
+                                    }}
+                                    onContentSizeChange={(w, h) => {
+                                        contentHeightRef.current = h;
+                                        if (stickToBottomRef.current) {
+                                            scrollToBottom(false);
+                                        }
+                                    }}
+                                    onScroll={handleScroll}
+                                    scrollEventThrottle={16}
+                                    ListHeaderComponent={
+                                        <>
+                                            {/* Order Card */}
+                                            <View style={styles.orderCardWrapper}>
+                                                <View style={styles.orderCardHeader}>
+                                                    <Ionicons name="bookmarks-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
+                                                    <ThemedText style={styles.orderCardHeaderText}>New Order</ThemedText>
+                                                </View>
+                                                <View style={styles.orderCardBody}>
+                                                    <View style={styles.orderInfoRow1}>
+                                                        <ThemedText style={styles.orderLabel}>Name</ThemedText>
+                                                        <ThemedText style={styles.orderValue}>{user?.name}</ThemedText>
+                                                    </View>
+                                                    <View style={styles.orderInfoRow2}>
+                                                        <ThemedText style={styles.orderLabel}>Order type</ThemedText>
+                                                        <ThemedText style={styles.orderValue}>{orderDetails?.service_type}</ThemedText>
+                                                    </View>
+                                                    <View style={styles.orderInfoRow3}>
+                                                        <ThemedText style={styles.orderLabel}>Order Status</ThemedText>
+                                                        <ThemedText style={styles.orderValue}>{orderDetails?.status}</ThemedText>
+                                                    </View>
+                                                </View>
+                                            </View>
+                                        </>
+                                    }
+                                />
+                            )
+                            }
+                            {/* Jump-to-bottom FAB */}
+                            {
+                                showJumpToBottom && (
+                                    <TouchableOpacity
+                                        onPress={() => { stickToBottomRef.current = true; scrollToBottom(true); }}
+                                        activeOpacity={0.9}
+                                        style={{
+                                            position: 'absolute',
+                                            right: 14,
+                                            bottom: 98,
+                                            width: 42, height: 42, borderRadius: 21,
+                                            alignItems: 'center', justifyContent: 'center',
+                                            backgroundColor: '#992C55', elevation: 4
+                                        }}
+                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                    >
+                                        <Ionicons name="chevron-down" size={22} color="#fff" />
+                                    </TouchableOpacity>
+                                )
+                            }
+
+                            {
+                                showEmojiPicker && (
+                                    <SafeEmojiPicker
+                                        onSelect={(emoji) => setInputMessage((prev) => prev + emoji)}
+                                        height={300}
+                                        columns={8}
+                                        itemSize={44}
+                                    />
+                                )
+                            }
+                            {
+                                replyTo && (
+                                    <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#f2f2f2', borderTopWidth: 1, borderColor: '#e5e5e5' }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                            <Ionicons name="return-up-forward-outline" size={18} color="#992C55" />
+                                            <ThemedText style={{ marginLeft: 8, fontWeight: '600', color: '#555' }}>
+                                                Replying to
+                                            </ThemedText>
+                                            <TouchableOpacity onPress={() => setReplyTo(null)} style={{ marginLeft: 'auto' }}>
+                                                <Ionicons name="close" size={20} color="#555" />
+                                            </TouchableOpacity>
+                                        </View>
+                                        <ThemedText numberOfLines={1} style={{ marginTop: 4, color: '#777' }}>
+                                            {replyTo.preview}
+                                        </ThemedText>
+                                    </View>
+                                )
+                            }
+
+                            <View style={[styles.inputWrapper, {
+                                // Only add safe area padding when keyboard is closed AND there are navigation buttons
+                                paddingBottom: !isKeyboardVisible ? (insets.bottom > 0 ? insets.bottom : 10) : 0
+                            }]}>
+                                <View style={styles.inputRow}>
+                                    <TouchableOpacity style={{ marginTop: 15 }} onPress={() => {
+                                        Keyboard.dismiss();
+                                        setShowEmojiPicker(prev => !prev);
+                                    }}>
+                                        <Ionicons name="happy-outline" size={26} color="#555" />
+                                    </TouchableOpacity>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Message"
+                                        value={inputMessage}
+                                        onChangeText={setInputMessage}
+                                        onSubmitEditing={sendMessage}
+                                        onFocus={() => setShowEmojiPicker(false)}
+                                    />
+                                    <TouchableOpacity style={{ marginTop: 15 }} onPress={() => setAttachmentModal(true)}>
+                                        <Ionicons name="attach" size={28} color="#555" />
+                                    </TouchableOpacity>
+                                    {inputMessage.trim() ? (
+                                        <TouchableOpacity
+                                            onPress={sendMessage}
+                                            style={[styles.sendBtn, sendingMessage && { opacity: 0.5 }]}
+                                            disabled={sendingMessage}
+                                        >
+                                            {sendingMessage ? (
+                                                <ActivityIndicator size="small" color="#fff" />
+                                            ) : (
+                                                <Ionicons name="send" size={24} color="#fff" />
+                                            )}
+                                        </TouchableOpacity>
                                     ) : (
-                                        <LastSeenText 
-                                            isOnline={otherUserStatus?.is_online} 
-                                            lastSeen={otherUserStatus?.last_seen}
-                                            style={styles.online}
+                                        <RecordingButton
+                                            isRecording={isRecording}
+                                            onStart={startRecording}
+                                            onStop={stopRecording}
+                                            onLock={() => setRecordingModalVisible(true)}
                                         />
                                     )}
                                 </View>
-                            </TouchableOpacity>
-
-                            {userRole === 'support' && (
-                                <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginLeft: 'auto', marginRight: 10 }}>
-                                    <Ionicons name="ellipsis-vertical" size={22} color="#fff" />
-                                </TouchableOpacity>
-                            )}
-                        </View>
-                        {isMessagesLoading ? (
-                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                                <ActivityIndicator size="large" color="#992C55" />
                             </View>
-                        ) : (
-                            <FlatList
-                                ref={flatListRef}
-                                data={messages}
-                                keyExtractor={(item) => String(item.id)}
-                                renderItem={renderMessage}
-                                contentContainerStyle={{ padding: 16, paddingBottom: 30 }}
-                                showsVerticalScrollIndicator={false}
-                                scrollEnabled={true}
-                                keyboardShouldPersistTaps="handled"
-                                style={{ flex: 1 }}
-                                initialNumToRender={15}
-                                maxToRenderPerBatch={20}
-                                windowSize={10}
-                                // ⛔ removed getItemLayout (variable-height rows)
-                                onScrollToIndexFailed={({ index }) => {
-                                    flatListRef.current?.scrollToEnd({ animated: false });
-                                    setTimeout(() => {
-                                        try {
-                                            flatListRef.current?.scrollToIndex?.({ index, animated: true, viewPosition: 0.5 });
-                                        } catch { }
-                                    }, 60);
-                                }}
-                                onLayout={(e) => {
-                                    layoutHeightRef.current = e.nativeEvent.layout.height;
-                                }}
-                                onContentSizeChange={(w, h) => {
-                                    contentHeightRef.current = h;
-                                    if (stickToBottomRef.current) {
-                                        scrollToBottom(false);
-                                    }
-                                }}
-                                onScroll={handleScroll}
-                                scrollEventThrottle={16}
-                                ListHeaderComponent={
-                                    <>
-                                        {/* Order Card */}
-                                        <View style={styles.orderCardWrapper}>
-                                            <View style={styles.orderCardHeader}>
-                                                <Ionicons name="bookmarks-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
-                                                <ThemedText style={styles.orderCardHeaderText}>New Order</ThemedText>
-                                            </View>
-                                            <View style={styles.orderCardBody}>
-                                                <View style={styles.orderInfoRow1}>
-                                                    <ThemedText style={styles.orderLabel}>Name</ThemedText>
-                                                    <ThemedText style={styles.orderValue}>{user?.name}</ThemedText>
+
+                            {
+                                userRole === 'support' && (
+                                    <Modal visible={modalVisible} animationType="slide" transparent>
+                                        <View style={[styles.modalOverlay, { backgroundColor: '#00000090', }]}>
+                                            <View style={[styles.agentOptionsModal, { backgroundColor: "#F5F5F7" }]}>
+                                                <View style={styles.modalHeader}>
+                                                    <ThemedText style={styles.modalTitle}>Options</ThemedText>
+                                                    <TouchableOpacity style={{ backgroundColor: "#fff", borderRadius: 20, padding: 4 }} onPress={() => setModalVisible(false)}>
+                                                        <Ionicons name="close" size={24} color="#000" />
+                                                    </TouchableOpacity>
                                                 </View>
-                                                <View style={styles.orderInfoRow2}>
-                                                    <ThemedText style={styles.orderLabel}>Order type</ThemedText>
-                                                    <ThemedText style={styles.orderValue}>{orderDetails?.service_type}</ThemedText>
-                                                </View>
-                                                <View style={styles.orderInfoRow3}>
-                                                    <ThemedText style={styles.orderLabel}>Order Status</ThemedText>
-                                                    <ThemedText style={styles.orderValue}>{orderDetails?.status}</ThemedText>
-                                                </View>
+                                                <TouchableOpacity
+                                                    style={styles.modalItemRow}
+                                                    onPress={() => {
+                                                        setModalVisible(false);
+                                                        setQuickRepliesModalVisible(true);
+                                                    }}
+                                                >
+                                                    <Ionicons name="sparkles-outline" size={20} color="#000" style={styles.modalIcon} />
+                                                    <ThemedText style={styles.modalItemText}>Quick Replies</ThemedText>
+                                                </TouchableOpacity>
+
+                                                <TouchableOpacity onPress={() => navigation.navigate('AgentQuestionnaire', {
+                                                    chat_id,
+                                                    user_id: user?.id,
+                                                })} style={styles.modalItemRow}>
+                                                    <Ionicons name="eye-outline" size={20} color="#000" style={styles.modalIcon} />
+                                                    <ThemedText style={styles.modalItemText}>View Questionnaire</ThemedText>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={() => {
+                                                    sendQuestionnaire(chat_id, user?.id);
+                                                }} style={styles.modalItemRow}>
+                                                    <Ionicons name="paper-plane-outline" size={20} color="#000" style={styles.modalIcon} />
+                                                    <ThemedText style={styles.modalItemText}>Send Questionnaire</ThemedText>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={() => {
+                                                    setModalVisible(false);
+                                                    setPaymentModalVisible(true);
+                                                }} style={styles.modalItemRow}>
+                                                    <Ionicons name="calendar-outline" size={20} color="#000" style={styles.modalIcon} />
+                                                    <ThemedText style={styles.modalItemText}>Create Payment Order</ThemedText>
+                                                </TouchableOpacity>
+
+                                                <TouchableOpacity
+                                                    onPress={() => {
+                                                        setModalVisible(false);
+                                                        setViewNotesVisible(true);
+                                                    }}
+                                                    style={styles.modalItemRow}
+                                                >
+                                                    <Ionicons name="document-text-outline" size={20} color="#000" style={styles.modalIcon} />
+                                                    <ThemedText style={styles.modalItemText}>
+                                                        View Notes <ThemedText style={{ color: 'red' }}>●</ThemedText>
+                                                    </ThemedText>
+                                                </TouchableOpacity>
+
+                                                <TouchableOpacity style={styles.modalItemRow}>
+                                                    <Ionicons name="warning-outline" size={20} color="red" style={styles.modalIcon} />
+                                                    <ThemedText style={[styles.modalItemText, { color: 'red' }]}>Report User</ThemedText>
+                                                </TouchableOpacity>
+
+                                                <View style={styles.divider} />
+                                                <TouchableOpacity
+                                                    style={[styles.actionButton, { borderColor: 'green' }]}
+                                                    onPress={() => updateOrderStatus('completed')}
+                                                >
+                                                    <ThemedText style={[styles.actionText, { color: 'green' }]}>
+                                                        ✓ Mark as completed
+                                                    </ThemedText>
+                                                </TouchableOpacity>
+
+                                                <TouchableOpacity
+                                                    style={[styles.actionButton, { borderColor: '#FFA500' }]}
+                                                    onPress={() => updateOrderStatus('pending')}
+                                                >
+                                                    <ThemedText style={[styles.actionText, { color: '#FFA500' }]}>
+                                                        ✓ Mark as Pending
+                                                    </ThemedText>
+                                                </TouchableOpacity>
+
+                                                <TouchableOpacity
+                                                    style={[styles.actionButton, { borderColor: 'red' }]}
+                                                    onPress={() => updateOrderStatus('failed')}
+                                                >
+                                                    <ThemedText style={[styles.actionText, { color: 'red' }]}>
+                                                        ✗ Mark as Failed
+                                                    </ThemedText>
+                                                </TouchableOpacity>
                                             </View>
                                         </View>
-                                    </>
-                                }
-                            />
-                        )}
-                        {/* Jump-to-bottom FAB */}
-                        {showJumpToBottom && (
-                            <TouchableOpacity
-                                onPress={() => { stickToBottomRef.current = true; scrollToBottom(true); }}
-                                activeOpacity={0.9}
-                                style={{
-                                    position: 'absolute',
-                                    right: 14,
-                                    bottom: 98,
-                                    width: 42, height: 42, borderRadius: 21,
-                                    alignItems: 'center', justifyContent: 'center',
-                                    backgroundColor: '#992C55', elevation: 4
-                                }}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                            >
-                                <Ionicons name="chevron-down" size={22} color="#fff" />
-                            </TouchableOpacity>
-                        )}
+                                    </Modal>
+                                )
+                            }
 
-                        {showEmojiPicker && (
-                            <SafeEmojiPicker
-                                onSelect={(emoji) => setInputMessage((prev) => prev + emoji)}
-                                height={300}
-                                columns={8}
-                                itemSize={44}
-                            />
-                        )}
-                        {replyTo && (
-                            <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#f2f2f2', borderTopWidth: 1, borderColor: '#e5e5e5' }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                    <Ionicons name="return-up-forward-outline" size={18} color="#992C55" />
-                                    <ThemedText style={{ marginLeft: 8, fontWeight: '600', color: '#555' }}>
-                                        Replying to
-                                    </ThemedText>
-                                    <TouchableOpacity onPress={() => setReplyTo(null)} style={{ marginLeft: 'auto' }}>
-                                        <Ionicons name="close" size={20} color="#555" />
-                                    </TouchableOpacity>
-                                </View>
-                                <ThemedText numberOfLines={1} style={{ marginTop: 4, color: '#777' }}>
-                                    {replyTo.preview}
-                                </ThemedText>
-                            </View>
-                        )}
-
-                        <View style={styles.inputWrapper}>
-                            <View style={styles.inputRow}>
-                                <TouchableOpacity style={{ marginTop: 15 }} onPress={() => {
-                                    Keyboard.dismiss();
-                                    setShowEmojiPicker(prev => !prev);
-                                }}>
-                                    <Ionicons name="happy-outline" size={26} color="#555" />
-                                </TouchableOpacity>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Message"
-                                    value={inputMessage}
-                                    onChangeText={setInputMessage}
-                                    onSubmitEditing={sendMessage}
-                                    onFocus={() => setShowEmojiPicker(false)}
-                                />
-                                <TouchableOpacity style={{ marginTop: 15 }} onPress={() => setAttachmentModal(true)}>
-                                    <Ionicons name="attach" size={28} color="#555" />
-                                </TouchableOpacity>
-                                {inputMessage.trim() ? (
-                                    <TouchableOpacity
-                                        onPress={sendMessage}
-                                        style={[styles.sendBtn, sendingMessage && { opacity: 0.5 }]}
-                                        disabled={sendingMessage}
-                                    >
-                                        {sendingMessage ? (
-                                            <ActivityIndicator size="small" color="#fff" />
-                                        ) : (
-                                            <Ionicons name="send" size={24} color="#fff" />
-                                        )}
-                                    </TouchableOpacity>
-                                ) : (
-                                    <RecordingButton
-                                        isRecording={isRecording}
-                                        onStart={startRecording}
-                                        onStop={stopRecording}
-                                        onLock={() => setRecordingModalVisible(true)}
-                                    />
-                                )}
-                            </View>
-                        </View>
-
-                        {userRole === 'support' && (
-                            <Modal visible={modalVisible} animationType="slide" transparent>
-                                <View style={[styles.modalOverlay, { backgroundColor: '#00000090', }]}>
-                                    <View style={[styles.agentOptionsModal, { backgroundColor: "#F5F5F7" }]}>
-                                        <View style={styles.modalHeader}>
-                                            <ThemedText style={styles.modalTitle}>Options</ThemedText>
-                                            <TouchableOpacity style={{ backgroundColor: "#fff", borderRadius: 20, padding: 4 }} onPress={() => setModalVisible(false)}>
-                                                <Ionicons name="close" size={24} color="#000" />
-                                            </TouchableOpacity>
-                                        </View>
-                                        <TouchableOpacity
-                                            style={styles.modalItemRow}
-                                            onPress={() => {
-                                                setModalVisible(false);
-                                                setQuickRepliesModalVisible(true);
-                                            }}
-                                        >
-                                            <Ionicons name="sparkles-outline" size={20} color="#000" style={styles.modalIcon} />
-                                            <ThemedText style={styles.modalItemText}>Quick Replies</ThemedText>
-                                        </TouchableOpacity>
-
-                                        <TouchableOpacity onPress={() => navigation.navigate('AgentQuestionnaire', {
-                                            chat_id,
-                                            user_id: user?.id,
-                                        })} style={styles.modalItemRow}>
-                                            <Ionicons name="eye-outline" size={20} color="#000" style={styles.modalIcon} />
-                                            <ThemedText style={styles.modalItemText}>View Questionnaire</ThemedText>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={() => {
-                                            sendQuestionnaire(chat_id, user?.id);
-                                        }} style={styles.modalItemRow}>
-                                            <Ionicons name="paper-plane-outline" size={20} color="#000" style={styles.modalIcon} />
-                                            <ThemedText style={styles.modalItemText}>Send Questionnaire</ThemedText>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={() => {
-                                            setModalVisible(false);
-                                            setPaymentModalVisible(true);
-                                        }} style={styles.modalItemRow}>
-                                            <Ionicons name="calendar-outline" size={20} color="#000" style={styles.modalIcon} />
-                                            <ThemedText style={styles.modalItemText}>Create Payment Order</ThemedText>
-                                        </TouchableOpacity>
-
-                                        <TouchableOpacity
-                                            onPress={() => {
-                                                setModalVisible(false);
-                                                setViewNotesVisible(true);
-                                            }}
-                                            style={styles.modalItemRow}
-                                        >
-                                            <Ionicons name="document-text-outline" size={20} color="#000" style={styles.modalIcon} />
-                                            <ThemedText style={styles.modalItemText}>
-                                                View Notes <ThemedText style={{ color: 'red' }}>●</ThemedText>
-                                            </ThemedText>
-                                        </TouchableOpacity>
-
-                                        <TouchableOpacity style={styles.modalItemRow}>
-                                            <Ionicons name="warning-outline" size={20} color="red" style={styles.modalIcon} />
-                                            <ThemedText style={[styles.modalItemText, { color: 'red' }]}>Report User</ThemedText>
-                                        </TouchableOpacity>
-
-                                        <View style={styles.divider} />
-                                        <TouchableOpacity
-                                            style={[styles.actionButton, { borderColor: 'green' }]}
-                                            onPress={() => updateOrderStatus('completed')}
-                                        >
-                                            <ThemedText style={[styles.actionText, { color: 'green' }]}>
-                                                ✓ Mark as completed
-                                            </ThemedText>
-                                        </TouchableOpacity>
-
-                                        <TouchableOpacity
-                                            style={[styles.actionButton, { borderColor: '#FFA500' }]}
-                                            onPress={() => updateOrderStatus('pending')}
-                                        >
-                                            <ThemedText style={[styles.actionText, { color: '#FFA500' }]}>
-                                                ✓ Mark as Pending
-                                            </ThemedText>
-                                        </TouchableOpacity>
-
-                                        <TouchableOpacity
-                                            style={[styles.actionButton, { borderColor: 'red' }]}
-                                            onPress={() => updateOrderStatus('failed')}
-                                        >
-                                            <ThemedText style={[styles.actionText, { color: 'red' }]}>
-                                                ✗ Mark as Failed
-                                            </ThemedText>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                            </Modal>
-                        )}
-
-                        {/* Fill Questionnaire Modal - visible for both users and agents */}
-                        <Modal visible={questionnaireVisible} transparent animationType="slide">
+                            {/* Fill Questionnaire Modal - visible for both users and agents */}
+                            <Modal visible={questionnaireVisible} transparent animationType="slide">
                                 <View style={[styles.agentOptionsModal, { maxHeight: '100%' }]}>
                                     {currentCategoryIndex === 0 && (
-                                        <CategoryOneModal 
+                                        <CategoryOneModal
                                             category={dynamicQuestionnaireData[currentCategoryIndex]}
                                             onClose={() => {
                                                 setQuestionnaireVisible(false);
@@ -2389,338 +2503,337 @@ const formatNaira = (v) => {
                                         />
                                     )}
                                 </View>
-                        </Modal>
+                            </Modal>
 
-                        <PaymentModal
-                            visible={paymentModalVisible}
-                            onClose={() => setPaymentModalVisible(false)}
-                            chatId={chat_id}
-                            userId={user?.id}
-                            onSend={(paymentMessage) => {
-                                const updatedMessages = [...messages, paymentMessage];
-                                setMessages(updatedMessages);
-                                setPaymentModalVisible(false);
-                                messagesQuery.refetch();
-                            }}
-                        />
+                            <PaymentModal
+                                visible={paymentModalVisible}
+                                onClose={() => setPaymentModalVisible(false)}
+                                chatId={chat_id}
+                                userId={user?.id}
+                                onSend={(paymentMessage) => {
+                                    const updatedMessages = [...messages, paymentMessage];
+                                    setMessages(updatedMessages);
+                                    setPaymentModalVisible(false);
+                                    messagesQuery.refetch();
+                                }}
+                            />
 
-                        <Modal visible={viewNotesVisible} animationType="slide" transparent>
-                            <View style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
-                                <View style={[styles.agentOptionsModal, { backgroundColor: '#F5F5F7', maxHeight: '80%' }]}>
-                                    <View style={styles.modalHeader}>
-                                        <ThemedText style={styles.modalTitle}>View Notes</ThemedText>
-                                        <TouchableOpacity
-                                            style={{ backgroundColor: "#fff", borderRadius: 20, padding: 4 }}
-                                            onPress={() => setViewNotesVisible(false)}
-                                        >
-                                            <Ionicons name="close" size={24} color="#000" />
-                                        </TouchableOpacity>
-                                    </View>
-
-                                    <FlatList
-                                        data={notes}
-                                        keyExtractor={(item) => item.id.toString()}
-                                        renderItem={({ item }) => (
-                                            <View style={{ backgroundColor: '#fff', padding: 12, borderRadius: 10, marginBottom: 10 }}>
-                                                <ThemedText style={{ fontSize: 14, color: '#333' }}>{item.text}</ThemedText>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
-                                                    <Image source={item.user.avatar} style={{ width: 24, height: 24, borderRadius: 12, marginRight: 6 }} />
-                                                    <ThemedText style={{ fontSize: 13, color: '#555' }}>{item.user.name}</ThemedText>
-                                                    {/* mine is not meaningful for notes; avoid undefined var */}
-                                                    <TimeWithTicks item={item} mine={false} />
-                                                </View>
-                                            </View>
-                                        )}
-                                        contentContainerStyle={{ paddingBottom: 20 }}
-                                    />
-
-                                    <TouchableOpacity
-                                        onPress={() => {
-                                            setAddNoteVisible(true);
-                                            setViewNotesVisible(false);
-                                        }}
-                                        style={[styles.actionButton, { backgroundColor: '#992C55', borderColor: "transparent", marginTop: 10, borderRadius: 40 }]}
-                                    >
-                                        <ThemedText style={{ color: '#fff', fontWeight: '600' }}> Add New Note</ThemedText>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        </Modal>
-
-                        {/* video preview modal */}
-                        <Modal visible={videoPreview.visible} animationType="slide">
-                            <View style={{ flex: 1, backgroundColor: '#000' }}>
-                                <View style={{ paddingTop: 50, paddingBottom: 8, paddingHorizontal: 20, backgroundColor: '#000' }}>
-                                    <TouchableOpacity onPress={() => setVideoPreview({ visible: false, uri: null })} style={{ marginRight: 12 }}>
-                                        <Ionicons name="chevron-back" size={28} color="#fff" />
-                                    </TouchableOpacity>
-                                </View>
-
-                                <Video
-                                    source={{ uri: videoPreview.uri }}
-                                    style={{ flex: 1 }}
-                                    resizeMode="contain"
-                                    useNativeControls
-                                    shouldPlay
-                                />
-                            </View>
-                        </Modal>
-
-                        {/*  Add notes Modal*/}
-                        <Modal visible={addNoteVisible} animationType="slide" transparent>
-                            <View style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
-                                <View style={{
-                                    backgroundColor: '#f5f5f7',
-                                    borderRadius: 20,
-                                    width: '100%',
-                                    padding: 20,
-                                }}>
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <ThemedText style={{ fontSize: 18, fontWeight: '600' }}>Add a note</ThemedText>
-                                        <TouchableOpacity style={{ backgroundColor: "#fff", borderRadius: 20, padding: 4 }} onPress={() => setAddNoteVisible(false)}>
-                                            <Ionicons name="close" size={24} color="#000" />
-                                        </TouchableOpacity>
-                                    </View>
-
-                                    <TextInput
-                                        multiline
-                                        placeholder="Enter note"
-                                        value={newNoteText}
-                                        onChangeText={setNewNoteText}
-                                        style={{
-                                            backgroundColor: '#FFF',
-                                            borderRadius: 12,
-                                            padding: 12,
-                                            marginTop: 20,
-                                            minHeight: 100,
-                                            textAlignVertical: 'top',
-                                        }}
-                                    />
-
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 20 }}>
-                                        <Image source={agent.image} style={{ width: 24, height: 24, borderRadius: 12, marginRight: 6 }} />
-                                        <ThemedText style={{ fontSize: 13 }}>{agent.name}</ThemedText>
-                                        <ThemedText style={{ fontSize: 11, marginLeft: 'auto' }}>
-                                            {new Date().toLocaleDateString('en-US', {
-                                                month: 'short',
-                                                day: 'numeric',
-                                                year: 'numeric'
-                                            })} - {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
-                                        </ThemedText>
-                                    </View>
-
-                                    <TouchableOpacity
-                                        onPress={() => {
-                                            const timestamp = `${new Date().toLocaleDateString('en-US', {
-                                                month: 'short',
-                                                day: 'numeric',
-                                                year: 'numeric'
-                                            })} - ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
-
-                                            const newNote = {
-                                                id: Date.now(),
-                                                text: newNoteText,
-                                                user: {
-                                                    name: agent.name,
-                                                    avatar: agent.image,
-                                                },
-                                                timestamp,
-                                            };
-
-                                            setNotes([...notes, newNote]);
-                                            setNewNoteText('');
-                                            setAddNoteVisible(false);
-                                            setViewNotesVisible(true);
-                                        }}
-                                        style={{ backgroundColor: '#992C55', borderRadius: 30, paddingVertical: 14, alignItems: 'center', marginTop: 20 }}
-                                    >
-                                        <ThemedText style={{ color: '#fff', fontWeight: '600' }}>Save</ThemedText>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        </Modal>
-
-                        <VoiceRecorderModal
-                            visible={recordingModalVisible}
-                            audioUri={audioUri}
-                            onCancel={() => {
-                                setAudioUri(null);
-                                setRecordingModalVisible(false);
-                            }}
-                            onSend={(uri) => {
-                                sendAudioMessage(uri);
-                                setAudioUri(null);
-                                setRecordingModalVisible(false);
-                            }}
-                        />
-
-                        {/* quick reply modal */}
-                        <Modal visible={quickRepliesModalVisible} animationType="slide" transparent>
-                            <View style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
-                                <View style={[styles.agentOptionsModal, { backgroundColor: '#F5F5F7', maxHeight: '80%' }]}>
-                                    <View style={styles.modalHeader}>
-                                        <ThemedText style={styles.modalTitle}>Saved Quick Replies</ThemedText>
-                                        <TouchableOpacity
-                                            onPress={() => setQuickRepliesModalVisible(false)}
-                                            style={{ backgroundColor: '#fff', borderRadius: 20, padding: 4 }}
-                                        >
-                                            <Ionicons name="close" size={24} color="#000" />
-                                        </TouchableOpacity>
-                                    </View>
-                                    {quickReplies?.map((item, index) => (
-                                        <TouchableOpacity
-                                            key={index}
-                                            onPress={() => {
-                                                const time = new Date().toLocaleTimeString([], {
-                                                    hour: '2-digit',
-                                                    minute: '2-digit',
-                                                    hour12: true,
-                                                });
-
-                                                const newMsg = {
-                                                    id: Date.now().toString(),
-                                                    sender: user?.id,
-                                                    text: item.text,
-                                                    time,
-                                                };
-                                                setInputMessage(item.text)
-                                                setMessages(prev => [...prev, newMsg]);
-                                                setQuickRepliesModalVisible(false);
-                                                setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-                                            }}
-                                            style={{
-                                                borderColor: '#992C55',
-                                                borderWidth: 1,
-                                                borderRadius: 20,
-                                                padding: 14,
-                                                marginBottom: 12,
-                                            }}
-                                        >
-                                            <ThemedText style={{ color: '#992C55', fontWeight: '500' }}>{item.text}</ThemedText>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            </View>
-                        </Modal>
-
-                        {/* add new quick reply modal */}
-                        <Modal visible={addReplyModalVisible} animationType="slide" transparent>
-                            <KeyboardAvoidingView behavior="padding" style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
-                                <View style={[styles.agentOptionsModal, { backgroundColor: '#F5F5F7' }]}>
-                                    <View style={styles.modalHeader}>
-                                        <ThemedText style={styles.modalTitle}>Add quick reply</ThemedText>
-                                        <TouchableOpacity
-                                            onPress={() => setAddReplyModalVisible(false)}
-                                            style={{ backgroundColor: '#fff', borderRadius: 20, padding: 4 }}
-                                        >
-                                            <Ionicons name="close" size={24} color="#000" />
-                                        </TouchableOpacity>
-                                    </View>
-
-                                    <TextInput
-                                        style={{
-                                            backgroundColor: '#fff',
-                                            borderRadius: 12,
-                                            padding: 14,
-                                            minHeight: 80,
-                                            textAlignVertical: 'top',
-                                        }}
-                                        placeholder="Enter reply"
-                                        multiline
-                                        value={newReply}
-                                        onChangeText={setNewReply}
-                                    />
-                                    <ThemedText style={{ textAlign: 'right', color: '#999', marginTop: 8 }}>{newReply.length} Words</ThemedText>
-
-                                    <TouchableOpacity
-                                        style={{
-                                            backgroundColor: '#992C55',
-                                            borderRadius: 30,
-                                            paddingVertical: 14,
-                                            alignItems: 'center',
-                                            marginTop: 20,
-                                        }}
-                                        onPress={saveQuickReply}
-                                    >
-                                        <ThemedText style={{ color: '#fff', fontWeight: 'bold' }}>Save</ThemedText>
-                                    </TouchableOpacity>
-                                </View>
-                            </KeyboardAvoidingView>
-                        </Modal>
-
-                        <Modal
-                            visible={messageActionModalVisible}
-                            animationType="slide"
-                            transparent
-                            onRequestClose={() => setMessageActionModalVisible(false)}
-                        >
-                            <TouchableOpacity
-                                style={styles.modalOverlay}
-                                activeOpacity={1}
-                                onPress={() => setMessageActionModalVisible(false)}
-                            >
-                                <View style={styles.messageActionModal}>
-                                    <TouchableOpacity
-                                        onPress={async () => {
-                                            if (selectedMessage?.text || selectedMessage?.type === 'text') {
-                                                await Clipboard.setStringAsync(selectedMessage.text);
-                                                alert('Copied to clipboard');
-                                            } else {
-                                                alert('Nothing to copy');
-                                            }
-                                            setMessageActionModalVisible(false);
-                                        }}
-                                        style={styles.modalItemRow}
-                                    >
-                                        <Ionicons name="copy-outline" size={20} color="#000" style={styles.modalIcon} />
-                                        <Text style={styles.modalItemText}>Copy</Text>
-                                    </TouchableOpacity>
-
-                                    <TouchableOpacity
-                                        onPress={() => {
-                                            setMessageActionModalVisible(false);
-                                            navigation.navigate('ForwardChat', { forwardMessage: selectedMessage });
-                                        }}
-                                        style={styles.modalItemRow}
-                                    >
-                                        {selectedMessage?.type === 'image' && isSingleImageMessage(selectedMessage) && (
+                            <Modal visible={viewNotesVisible} animationType="slide" transparent>
+                                <View style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
+                                    <View style={[styles.agentOptionsModal, { backgroundColor: '#F5F5F7', maxHeight: '80%' }]}>
+                                        <View style={styles.modalHeader}>
+                                            <ThemedText style={styles.modalTitle}>View Notes</ThemedText>
                                             <TouchableOpacity
-                                                onPress={async () => {
-                                                    await downloadImageToGallery(selectedMessage.image);
-                                                    setMessageActionModalVisible(false);
-                                                }}
-                                                style={styles.modalItemRow}
+                                                style={{ backgroundColor: "#fff", borderRadius: 20, padding: 4 }}
+                                                onPress={() => setViewNotesVisible(false)}
                                             >
-                                                <Ionicons name="download-outline" size={20} color="#000" style={styles.modalIcon} />
-                                                <Text style={styles.modalItemText}>Download</Text>
+                                                <Ionicons name="close" size={24} color="#000" />
                                             </TouchableOpacity>
-                                        )}
-                                        <Ionicons name="arrow-redo-outline" size={20} color="#000" style={styles.modalIcon} />
-                                        <Text style={styles.modalItemText}>Forward</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        onPress={() => {
-                                            setReplyTo({
-                                                id: selectedMessage.id,
-                                                preview:
-                                                    selectedMessage.text ||
-                                                    (selectedMessage.type === 'image' ? '📷 Photo' :
-                                                        selectedMessage.type === 'video' ? '🎥 Video' :
-                                                            selectedMessage.type === 'voice' ? '🎤 Voice message' :
-                                                                selectedMessage.type === 'file' ? (selectedMessage.name || '📄 Document') :
-                                                                    'Message'),
-                                            });
-                                            setMessageActionModalVisible(false);
-                                        }}
-                                        style={styles.modalItemRow}
-                                    >
-                                        <Ionicons name="return-up-forward-outline" size={20} color="#000" style={styles.modalIcon} />
-                                        <Text style={styles.modalItemText}>Reply</Text>
-                                    </TouchableOpacity>
+                                        </View>
 
-                                    {/* Only show edit and delete for text messages and if user is the sender */}
-                                    {selectedMessage?.type === 'text' && selectedMessage?.sender === user?.id && (
-                                        <>
+                                        <FlatList
+                                            data={notes}
+                                            keyExtractor={(item) => item.id.toString()}
+                                            renderItem={({ item }) => (
+                                                <View style={{ backgroundColor: '#fff', padding: 12, borderRadius: 10, marginBottom: 10 }}>
+                                                    <ThemedText style={{ fontSize: 14, color: '#333' }}>{item.text}</ThemedText>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
+                                                        <Image source={item.user.avatar} style={{ width: 24, height: 24, borderRadius: 12, marginRight: 6 }} />
+                                                        <ThemedText style={{ fontSize: 13, color: '#555' }}>{item.user.name}</ThemedText>
+                                                        {/* mine is not meaningful for notes; avoid undefined var */}
+                                                        <TimeWithTicks item={item} mine={false} />
+                                                    </View>
+                                                </View>
+                                            )}
+                                            contentContainerStyle={{ paddingBottom: 20 }}
+                                        />
+
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                setAddNoteVisible(true);
+                                                setViewNotesVisible(false);
+                                            }}
+                                            style={[styles.actionButton, { backgroundColor: '#992C55', borderColor: "transparent", marginTop: 10, borderRadius: 40 }]}
+                                        >
+                                            <ThemedText style={{ color: '#fff', fontWeight: '600' }}> Add New Note</ThemedText>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </Modal>
+
+                            {/* video preview modal */}
+                            <Modal visible={videoPreview.visible} animationType="slide">
+                                <View style={{ flex: 1, backgroundColor: '#000' }}>
+                                    <View style={{ paddingTop: 50, paddingBottom: 8, paddingHorizontal: 20, backgroundColor: '#000' }}>
+                                        <TouchableOpacity onPress={() => setVideoPreview({ visible: false, uri: null })} style={{ marginRight: 12 }}>
+                                            <Ionicons name="chevron-back" size={28} color="#fff" />
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    <Video
+                                        source={{ uri: videoPreview.uri }}
+                                        style={{ flex: 1 }}
+                                        resizeMode="contain"
+                                        useNativeControls
+                                        shouldPlay
+                                    />
+                                </View>
+                            </Modal>
+
+                            {/*  Add notes Modal*/}
+                            <Modal visible={addNoteVisible} animationType="slide" transparent>
+                                <View style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
+                                    <View style={{
+                                        backgroundColor: '#f5f5f7',
+                                        borderRadius: 20,
+                                        width: '100%',
+                                        padding: 20,
+                                    }}>
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <ThemedText style={{ fontSize: 18, fontWeight: '600' }}>Add a note</ThemedText>
+                                            <TouchableOpacity style={{ backgroundColor: "#fff", borderRadius: 20, padding: 4 }} onPress={() => setAddNoteVisible(false)}>
+                                                <Ionicons name="close" size={24} color="#000" />
+                                            </TouchableOpacity>
+                                        </View>
+
+                                        <TextInput
+                                            multiline
+                                            placeholder="Enter note"
+                                            value={newNoteText}
+                                            onChangeText={setNewNoteText}
+                                            style={{
+                                                backgroundColor: '#FFF',
+                                                borderRadius: 12,
+                                                padding: 12,
+                                                marginTop: 20,
+                                                minHeight: 100,
+                                                textAlignVertical: 'top',
+                                            }}
+                                        />
+
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 20 }}>
+                                            <Image source={agent.image} style={{ width: 24, height: 24, borderRadius: 12, marginRight: 6 }} />
+                                            <ThemedText style={{ fontSize: 13 }}>{agent.name}</ThemedText>
+                                            <ThemedText style={{ fontSize: 11, marginLeft: 'auto' }}>
+                                                {new Date().toLocaleDateString('en-US', {
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    year: 'numeric'
+                                                })} - {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                            </ThemedText>
+                                        </View>
+
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                const timestamp = `${new Date().toLocaleDateString('en-US', {
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    year: 'numeric'
+                                                })} - ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+
+                                                const newNote = {
+                                                    id: Date.now(),
+                                                    text: newNoteText,
+                                                    user: {
+                                                        name: agent.name,
+                                                        avatar: agent.image,
+                                                    },
+                                                    timestamp,
+                                                };
+
+                                                setNotes([...notes, newNote]);
+                                                setNewNoteText('');
+                                                setAddNoteVisible(false);
+                                                setViewNotesVisible(true);
+                                            }}
+                                            style={{ backgroundColor: '#992C55', borderRadius: 30, paddingVertical: 14, alignItems: 'center', marginTop: 20 }}
+                                        >
+                                            <ThemedText style={{ color: '#fff', fontWeight: '600' }}>Save</ThemedText>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </Modal>
+
+                            <VoiceRecorderModal
+                                visible={recordingModalVisible}
+                                audioUri={audioUri}
+                                onCancel={() => {
+                                    setAudioUri(null);
+                                    setRecordingModalVisible(false);
+                                }}
+                                onSend={(uri) => {
+                                    sendAudioMessage(uri);
+                                    setAudioUri(null);
+                                    setRecordingModalVisible(false);
+                                }}
+                            />
+
+                            {/* quick reply modal */}
+                            <Modal visible={quickRepliesModalVisible} animationType="slide" transparent>
+                                <View style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
+                                    <View style={[styles.agentOptionsModal, { backgroundColor: '#F5F5F7', maxHeight: '80%' }]}>
+                                        <View style={styles.modalHeader}>
+                                            <ThemedText style={styles.modalTitle}>Saved Quick Replies</ThemedText>
+                                            <TouchableOpacity
+                                                onPress={() => setQuickRepliesModalVisible(false)}
+                                                style={{ backgroundColor: '#fff', borderRadius: 20, padding: 4 }}
+                                            >
+                                                <Ionicons name="close" size={24} color="#000" />
+                                            </TouchableOpacity>
+                                        </View>
+                                        {quickReplies?.map((item, index) => (
+                                            <TouchableOpacity
+                                                key={index}
+                                                onPress={() => {
+                                                    const time = new Date().toLocaleTimeString([], {
+                                                        hour: '2-digit',
+                                                        minute: '2-digit',
+                                                        hour12: true,
+                                                    });
+
+                                                    const newMsg = {
+                                                        id: Date.now().toString(),
+                                                        sender: user?.id,
+                                                        text: item.text,
+                                                        time,
+                                                    };
+                                                    setInputMessage(item.text)
+                                                    setMessages(prev => [...prev, newMsg]);
+                                                    setQuickRepliesModalVisible(false);
+                                                    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+                                                }}
+                                                style={{
+                                                    borderColor: '#992C55',
+                                                    borderWidth: 1,
+                                                    borderRadius: 20,
+                                                    padding: 14,
+                                                    marginBottom: 12,
+                                                }}
+                                            >
+                                                <ThemedText style={{ color: '#992C55', fontWeight: '500' }}>{item.text}</ThemedText>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+                            </Modal>
+
+                            {/* add new quick reply modal */}
+                            <Modal visible={addReplyModalVisible} animationType="slide" transparent>
+                                <KeyboardAvoidingView behavior="padding" style={[styles.modalOverlay, { backgroundColor: '#00000090' }]}>
+                                    <View style={[styles.agentOptionsModal, { backgroundColor: '#F5F5F7' }]}>
+                                        <View style={styles.modalHeader}>
+                                            <ThemedText style={styles.modalTitle}>Add quick reply</ThemedText>
+                                            <TouchableOpacity
+                                                onPress={() => setAddReplyModalVisible(false)}
+                                                style={{ backgroundColor: '#fff', borderRadius: 20, padding: 4 }}
+                                            >
+                                                <Ionicons name="close" size={24} color="#000" />
+                                            </TouchableOpacity>
+                                        </View>
+
+                                        <TextInput
+                                            style={{
+                                                backgroundColor: '#fff',
+                                                borderRadius: 12,
+                                                padding: 14,
+                                                minHeight: 80,
+                                                textAlignVertical: 'top',
+                                            }}
+                                            placeholder="Enter reply"
+                                            multiline
+                                            value={newReply}
+                                            onChangeText={setNewReply}
+                                        />
+                                        <ThemedText style={{ textAlign: 'right', color: '#999', marginTop: 8 }}>{newReply.length} Words</ThemedText>
+
+                                        <TouchableOpacity
+                                            style={{
+                                                backgroundColor: '#992C55',
+                                                borderRadius: 30,
+                                                paddingVertical: 14,
+                                                alignItems: 'center',
+                                                marginTop: 20,
+                                            }}
+                                            onPress={saveQuickReply}
+                                        >
+                                            <ThemedText style={{ color: '#fff', fontWeight: 'bold' }}>Save</ThemedText>
+                                        </TouchableOpacity>
+                                    </View>
+                                </KeyboardAvoidingView>
+                            </Modal>
+
+                            <Modal
+                                visible={messageActionModalVisible}
+                                animationType="slide"
+                                transparent
+                                onRequestClose={() => setMessageActionModalVisible(false)}
+                            >
+                                <TouchableOpacity
+                                    style={styles.modalOverlay}
+                                    activeOpacity={1}
+                                    onPress={() => setMessageActionModalVisible(false)}
+                                >
+                                    <View style={styles.messageActionModal}>
+                                        <TouchableOpacity
+                                            onPress={async () => {
+                                                if (selectedMessage?.text || selectedMessage?.type === 'text') {
+                                                    await Clipboard.setStringAsync(selectedMessage.text);
+                                                    alert('Copied to clipboard');
+                                                } else {
+                                                    alert('Nothing to copy');
+                                                }
+                                                setMessageActionModalVisible(false);
+                                            }}
+                                            style={styles.modalItemRow}
+                                        >
+                                            <Ionicons name="copy-outline" size={20} color="#000" style={styles.modalIcon} />
+                                            <Text style={styles.modalItemText}>Copy</Text>
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                setMessageActionModalVisible(false);
+                                                navigation.navigate('ForwardChat', { forwardMessage: selectedMessage });
+                                            }}
+                                            style={styles.modalItemRow}
+                                        >
+                                            {selectedMessage?.type === 'image' && isSingleImageMessage(selectedMessage) && (
+                                                <TouchableOpacity
+                                                    onPress={async () => {
+                                                        await downloadImageToGallery(selectedMessage.image);
+                                                        setMessageActionModalVisible(false);
+                                                    }}
+                                                    style={styles.modalItemRow}
+                                                >
+                                                    <Ionicons name="download-outline" size={20} color="#000" style={styles.modalIcon} />
+                                                    <Text style={styles.modalItemText}>Download</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            <Ionicons name="arrow-redo-outline" size={20} color="#000" style={styles.modalIcon} />
+                                            <Text style={styles.modalItemText}>Forward</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                setReplyTo({
+                                                    id: selectedMessage.id,
+                                                    preview:
+                                                        selectedMessage.text ||
+                                                        (selectedMessage.type === 'image' ? '📷 Photo' :
+                                                            selectedMessage.type === 'video' ? '🎥 Video' :
+                                                                selectedMessage.type === 'voice' ? '🎤 Voice message' :
+                                                                    selectedMessage.type === 'file' ? (selectedMessage.name || '📄 Document') :
+                                                                        'Message'),
+                                                });
+                                                setMessageActionModalVisible(false);
+                                            }}
+                                            style={styles.modalItemRow}
+                                        >
+                                            <Ionicons name="return-up-forward-outline" size={20} color="#000" style={styles.modalIcon} />
+                                            <Text style={styles.modalItemText}>Reply</Text>
+                                        </TouchableOpacity>
+
+                                        {/* Show edit only for text messages and if user is the sender */}
+                                        {selectedMessage?.type === 'text' && selectedMessage?.sender === user?.id && (
                                             <TouchableOpacity
                                                 onPress={() => {
                                                     setEditMessageText(selectedMessage.text);
@@ -2732,7 +2845,10 @@ const formatNaira = (v) => {
                                                 <Ionicons name="create-outline" size={20} color="#000" style={styles.modalIcon} />
                                                 <Text style={styles.modalItemText}>Edit</Text>
                                             </TouchableOpacity>
+                                        )}
 
+                                        {/* Show delete for all message types if user is the sender */}
+                                        {selectedMessage?.sender === user?.id && (
                                             <TouchableOpacity
                                                 onPress={() => {
                                                     deleteMessage(selectedMessage.id);
@@ -2743,155 +2859,154 @@ const formatNaira = (v) => {
                                                 <Ionicons name="trash-outline" size={20} color="#ff4444" style={styles.modalIcon} />
                                                 <Text style={[styles.modalItemText, { color: '#ff4444' }]}>Delete</Text>
                                             </TouchableOpacity>
-                                        </>
-                                    )}
+                                        )}
 
-                                </View>
-                            </TouchableOpacity>
-                        </Modal>
+                                    </View>
+                                </TouchableOpacity>
+                            </Modal>
 
-                        {/* Edit Message Modal */}
-                        <Modal
-                            visible={editMessageModalVisible}
-                            animationType="slide"
-                            transparent
-                            onRequestClose={() => setEditMessageModalVisible(false)}
-                        >
-                            <TouchableOpacity
-                                style={styles.modalOverlay}
-                                activeOpacity={1}
-                                onPress={() => setEditMessageModalVisible(false)}
+                            {/* Edit Message Modal */}
+                            <Modal
+                                visible={editMessageModalVisible}
+                                animationType="slide"
+                                transparent
+                                onRequestClose={() => setEditMessageModalVisible(false)}
                             >
-                                <View style={styles.editMessageModal}>
-                                    <View style={styles.editMessageHeader}>
-                                        <ThemedText style={styles.editMessageTitle}>Edit Message</ThemedText>
-                                        <TouchableOpacity
-                                            onPress={() => setEditMessageModalVisible(false)}
-                                            style={styles.closeButton}
-                                        >
-                                            <Ionicons name="close" size={24} color="#666" />
-                                        </TouchableOpacity>
-                                    </View>
-                                    
-                                    <TextInput
-                                        style={styles.editMessageInput}
-                                        value={editMessageText}
-                                        onChangeText={setEditMessageText}
-                                        placeholder="Edit your message..."
-                                        multiline
-                                        autoFocus
-                                    />
-                                    
-                                    <View style={styles.editMessageActions}>
-                                        <TouchableOpacity
-                                            onPress={() => setEditMessageModalVisible(false)}
-                                            style={[styles.editMessageButton, styles.cancelButton]}
-                                        >
-                                            <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
-                                        </TouchableOpacity>
-                                        
-                                        <TouchableOpacity
-                                            onPress={() => {
-                                                if (editMessageText.trim() && selectedMessage) {
-                                                    editMessage(selectedMessage.id, editMessageText.trim());
-                                                    setEditMessageModalVisible(false);
-                                                    setEditMessageText('');
-                                                }
-                                            }}
-                                            style={[styles.editMessageButton, styles.saveButton]}
-                                        >
-                                            <ThemedText style={styles.saveButtonText}>Save</ThemedText>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-                        </Modal>
-
-                        {/* image selector modal */}
-                        <Modal visible={attachmentModal} transparent animationType="slide">
-                            <Pressable style={styles.fullscreenOverlay} onPress={() => setAttachmentModal(false)}>
-                                <Pressable style={styles.attachmentModalContainer}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', paddingBottom: 16 }}>
-                                        <TouchableOpacity onPress={pickImage} style={styles.attachmentOption}>
-                                            <Ionicons name="images-outline" size={24} color="#fff" />
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={pickDocument} style={[styles.attachmentOption, { marginLeft: 15 }]}>
-                                            <Ionicons name="documents-outline" size={24} color="#fff" />
-                                        </TouchableOpacity>
-                                        {userRole === 'support' && (
-                                            <TouchableOpacity 
-                                                onPress={() => {
-                                                    setAttachmentModal(false);
-                                                    setModalVisible(true);
-                                                }} 
-                                                style={[styles.attachmentOption, { marginLeft: 15 }]}
+                                <TouchableOpacity
+                                    style={styles.modalOverlay}
+                                    activeOpacity={1}
+                                    onPress={() => setEditMessageModalVisible(false)}
+                                >
+                                    <View style={styles.editMessageModal}>
+                                        <View style={styles.editMessageHeader}>
+                                            <ThemedText style={styles.editMessageTitle}>Edit Message</ThemedText>
+                                            <TouchableOpacity
+                                                onPress={() => setEditMessageModalVisible(false)}
+                                                style={styles.closeButton}
                                             >
-                                                <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
+                                                <Ionicons name="close" size={24} color="#666" />
                                             </TouchableOpacity>
-                                        )}
-                                    </View>
-                                    <View style={{ flexDirection: 'row', borderRadius: 12, gap: 40, marginTop: -9 }}>
-                                        <ThemedText style={[styles.attachmentOptionText, { marginLeft: 20 }]}>Gallery</ThemedText>
-                                        <ThemedText style={styles.attachmentOptionText}>Document</ThemedText>
-                                        {userRole === 'support' && (
-                                            <ThemedText style={styles.attachmentOptionText}>Options</ThemedText>
-                                        )}
-                                    </View>
-                                </Pressable>
-                            </Pressable>
-                        </Modal>
+                                        </View>
 
-                        <Modal visible={imagePreviewVisible} animationType="slide">
-                            <View style={{ flex: 1, backgroundColor: '#fff' }}>
-                                <View style={{ backgroundColor: '#992C55', paddingTop: 50, paddingBottom: 8, paddingHorizontal: 20 }}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                        <TouchableOpacity onPress={() => setImagePreviewVisible(false)} style={{ marginRight: 12 }}>
-                                            <Ionicons name="chevron-back" size={28} color="#fff" />
-                                        </TouchableOpacity>
-                                        <View>
-                                            <ThemedText style={{ color: '#fff', fontSize: 18, fontWeight: '600' }}>
-                                                {previewImages[0]?.sender === userRole ? 'You' : agent?.name || 'Sender'}
-                                            </ThemedText>
-                                            <ThemedText style={{ color: '#eee', fontSize: 12 }}>
-                                                {previewImages.length} photos - {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                            </ThemedText>
+                                        <TextInput
+                                            style={styles.editMessageInput}
+                                            value={editMessageText}
+                                            onChangeText={setEditMessageText}
+                                            placeholder="Edit your message..."
+                                            multiline
+                                            autoFocus
+                                        />
+
+                                        <View style={styles.editMessageActions}>
+                                            <TouchableOpacity
+                                                onPress={() => setEditMessageModalVisible(false)}
+                                                style={[styles.editMessageButton, styles.cancelButton]}
+                                            >
+                                                <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
+                                            </TouchableOpacity>
+
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    if (editMessageText.trim() && selectedMessage) {
+                                                        editMessage(selectedMessage.id, editMessageText.trim());
+                                                        setEditMessageModalVisible(false);
+                                                        setEditMessageText('');
+                                                    }
+                                                }}
+                                                style={[styles.editMessageButton, styles.saveButton]}
+                                            >
+                                                <ThemedText style={styles.saveButtonText}>Save</ThemedText>
+                                            </TouchableOpacity>
                                         </View>
                                     </View>
-                                </View>
-                                <FlatList
-                                    data={previewImages}
-                                    keyExtractor={(img) => img.id}
-                                    renderItem={({ item }) => {
-                                        const mine = item?.sender === user?.id;
-                                        return (
-                                            <View style={{ marginBottom: 16 }}>
-                                                <Image source={{ uri: item.image }} style={{ width: '100%', height: 450 }} resizeMode="cover" />
-                                                <TimeWithTicks item={item} mine={mine} />
+                                </TouchableOpacity>
+                            </Modal>
+
+                            {/* image selector modal */}
+                            <Modal visible={attachmentModal} transparent animationType="slide">
+                                <Pressable style={styles.fullscreenOverlay} onPress={() => setAttachmentModal(false)}>
+                                    <Pressable style={styles.attachmentModalContainer}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', paddingBottom: 16 }}>
+                                            <TouchableOpacity onPress={pickImage} style={styles.attachmentOption}>
+                                                <Ionicons name="images-outline" size={24} color="#fff" />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={pickDocument} style={[styles.attachmentOption, { marginLeft: 15 }]}>
+                                                <Ionicons name="documents-outline" size={24} color="#fff" />
+                                            </TouchableOpacity>
+                                            {userRole === 'support' && (
                                                 <TouchableOpacity
-                                                    onPress={() => downloadImageToGallery(item.image)}
-                                                    style={{
-                                                        position: 'absolute',
-                                                        right: 16,
-                                                        top: 16,
-                                                        backgroundColor: 'rgba(0,0,0,0.5)',
-                                                        padding: 10,
-                                                        borderRadius: 24,
+                                                    onPress={() => {
+                                                        setAttachmentModal(false);
+                                                        setModalVisible(true);
                                                     }}
-                                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                                    style={[styles.attachmentOption, { marginLeft: 15 }]}
                                                 >
-                                                    <Ionicons name="download-outline" size={22} color="#fff" />
+                                                    <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
                                                 </TouchableOpacity>
+                                            )}
+                                        </View>
+                                        <View style={{ flexDirection: 'row', borderRadius: 12, gap: 40, marginTop: -9 }}>
+                                            <ThemedText style={[styles.attachmentOptionText, { marginLeft: 20 }]}>Gallery</ThemedText>
+                                            <ThemedText style={styles.attachmentOptionText}>Document</ThemedText>
+                                            {userRole === 'support' && (
+                                                <ThemedText style={styles.attachmentOptionText}>Options</ThemedText>
+                                            )}
+                                        </View>
+                                    </Pressable>
+                                </Pressable>
+                            </Modal>
+
+                            <Modal visible={imagePreviewVisible} animationType="slide">
+                                <View style={{ flex: 1, backgroundColor: '#fff' }}>
+                                    <View style={{ backgroundColor: '#992C55', paddingTop: 50, paddingBottom: 8, paddingHorizontal: 20 }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                            <TouchableOpacity onPress={() => setImagePreviewVisible(false)} style={{ marginRight: 12 }}>
+                                                <Ionicons name="chevron-back" size={28} color="#fff" />
+                                            </TouchableOpacity>
+                                            <View>
+                                                <ThemedText style={{ color: '#fff', fontSize: 18, fontWeight: '600' }}>
+                                                    {previewImages[0]?.sender === userRole ? 'You' : agent?.name || 'Sender'}
+                                                </ThemedText>
+                                                <ThemedText style={{ color: '#eee', fontSize: 12 }}>
+                                                    {previewImages.length} photos - {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                </ThemedText>
                                             </View>
-                                        );
-                                    }}
-                                />
-                            </View>
-                        </Modal>
-                    </View>
-                    </KeyboardAvoidingView>
-                </ImageBackground>
-            </TouchableWithoutFeedback>
-        </View>
+                                        </View>
+                                    </View>
+                                    <FlatList
+                                        data={previewImages}
+                                        keyExtractor={(img) => img.id}
+                                        renderItem={({ item }) => {
+                                            const mine = item?.sender === user?.id;
+                                            return (
+                                                <View style={{ marginBottom: 16 }}>
+                                                    <Image source={{ uri: item.image }} style={{ width: '100%', height: 450 }} resizeMode="cover" />
+                                                    <TimeWithTicks item={item} mine={mine} />
+                                                    <TouchableOpacity
+                                                        onPress={() => downloadImageToGallery(item.image)}
+                                                        style={{
+                                                            position: 'absolute',
+                                                            right: 16,
+                                                            top: 16,
+                                                            backgroundColor: 'rgba(0,0,0,0.5)',
+                                                            padding: 10,
+                                                            borderRadius: 24,
+                                                        }}
+                                                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                                    >
+                                                        <Ionicons name="download-outline" size={22} color="#fff" />
+                                                    </TouchableOpacity>
+                                                </View>
+                                            );
+                                        }}
+                                    />
+                                </View>
+                            </Modal>
+                        </View >
+                    </KeyboardAvoidingView >
+                </ImageBackground >
+            </TouchableWithoutFeedback >
+        </View >
     );
 };
 const styles = StyleSheet.create({
@@ -2904,7 +3019,10 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#fff', // white base behind the image
     },
-    container: { flex: 1, backgroundColor: 'transparent' },
+    container: {
+        flex: 1,
+        backgroundColor: 'transparent',
+    },
     topBar: {
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: '#992C55', gap: 10,
@@ -2975,6 +3093,7 @@ const styles = StyleSheet.create({
 
     inputWrapper: {
         backgroundColor: '#fff',
+        paddingBottom: 0,
     },
     inputRow: {
         flexDirection: 'row',

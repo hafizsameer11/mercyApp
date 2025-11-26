@@ -15,6 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import ThemedText from '../../../components/ThemedText';
+import ChangePassword from './ChangePassword';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -48,11 +49,12 @@ const loadLocalAvatar = async (user) => {
   return await AsyncStorage.getItem(key);
 };
 
-const EditProfile = () => {
+const EditProfile = ({ isTabletSplitView = false, onSave }) => {
   const navigation = useNavigation();
 
   const [username, setUsername] = useState('');
   const [phone, setPhone] = useState('');
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const [user, setUser] = useState(null);
   const [photoUri, setPhotoUri] = useState(null); // preview in UI
@@ -142,7 +144,11 @@ const EditProfile = () => {
       await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
 
       Alert.alert('Success', 'Profile updated successfully');
-      navigation.goBack();
+      if (isTabletSplitView && onSave) {
+        onSave();
+      } else {
+        navigation.goBack();
+      }
     } catch (error) {
       console.log('Edit Profile Error:', error?.response?.data || error?.message);
       Alert.alert('Error', error?.response?.data?.message || 'Something went wrong while updating your profile.');
@@ -151,16 +157,32 @@ const EditProfile = () => {
     }
   };
 
+  // If showing Change Password in split view, render that instead
+  if (showChangePassword && isTabletSplitView) {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+        <StatusBar style="dark" />
+        <ChangePassword 
+          isTabletSplitView={true}
+          onBack={() => setShowChangePassword(false)}
+          onSuccess={() => setShowChangePassword(false)}
+        />
+      </ScrollView>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       <StatusBar style="dark" />
 
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={28} color="#000" />
-        </TouchableOpacity>
-        <ThemedText style={styles.title}>Edit Profile</ThemedText>
+      <View style={[styles.header, isTabletSplitView && styles.tabletHeader]}>
+        {!isTabletSplitView && (
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={28} color="#000" />
+          </TouchableOpacity>
+        )}
+        <ThemedText style={[styles.title, isTabletSplitView && styles.tabletTitle]}>Edit Profile</ThemedText>
       </View>
 
       {/* Avatar */}
@@ -191,40 +213,46 @@ const EditProfile = () => {
 
       {/* Form */}
       <View style={styles.form}>
-        <ThemedText style={styles.label}>Username</ThemedText>
+        <ThemedText style={[styles.label, isTabletSplitView && styles.tabletLabel]}>Username</ThemedText>
         <TextInput
-          style={styles.input}
+          style={[styles.input, isTabletSplitView && styles.tabletInput]}
           value={username}
           onChangeText={setUsername}
           placeholder="Enter username"
         />
 
-        <ThemedText style={styles.label}>Phone number</ThemedText>
+        <ThemedText style={[styles.label, isTabletSplitView && styles.tabletLabel]}>Phone number</ThemedText>
         <TextInput
-          style={styles.input}
+          style={[styles.input, isTabletSplitView && styles.tabletInput]}
           keyboardType="phone-pad"
           value={phone}
           onChangeText={setPhone}
           placeholder="Enter phone"
         />
 
-        <ThemedText style={styles.label}>Password</ThemedText>
+        <ThemedText style={[styles.label, isTabletSplitView && styles.tabletLabel]}>Password</ThemedText>
         <TouchableOpacity
-          style={styles.passwordRow}
-          onPress={() => navigation.navigate('ChangePass')}
+          style={[styles.passwordRow, isTabletSplitView && styles.tabletPasswordRow]}
+          onPress={() => {
+            if (isTabletSplitView) {
+              setShowChangePassword(true);
+            } else {
+              navigation.navigate('ChangePass');
+            }
+          }}
         >
-          <ThemedText style={styles.passwordText}>Change Password</ThemedText>
+          <ThemedText style={[styles.passwordText, isTabletSplitView && styles.tabletPasswordText]}>Change Password</ThemedText>
           <Ionicons name="chevron-forward" size={20} color="#999" />
         </TouchableOpacity>
       </View>
 
       {/* Save Button */}
       <TouchableOpacity
-        style={[styles.saveBtn, submitting && { opacity: 0.7 }]}
+        style={[styles.saveBtn, isTabletSplitView && styles.tabletSaveBtn, submitting && { opacity: 0.7 }]}
         onPress={handleSaveChanges}
         disabled={submitting}
       >
-        {submitting ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.saveText}>Save Changes</ThemedText>}
+        {submitting ? <ActivityIndicator color="#fff" /> : <ThemedText style={[styles.saveText, isTabletSplitView && styles.tabletSaveText]}>Save Changes</ThemedText>}
       </TouchableOpacity>
     </ScrollView>
   );
@@ -328,5 +356,37 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
+  },
+  // Tablet-specific styles with increased font sizes
+  tabletHeader: {
+    paddingTop: 30,
+    paddingBottom: 15,
+  },
+  tabletTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  tabletLabel: {
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  tabletInput: {
+    padding: 16,
+    fontSize: 17,
+    marginBottom: 24,
+  },
+  tabletPasswordRow: {
+    padding: 16,
+  },
+  tabletPasswordText: {
+    fontSize: 17,
+  },
+  tabletSaveBtn: {
+    paddingVertical: 16,
+    marginTop: 30,
+  },
+  tabletSaveText: {
+    fontSize: 18,
+    fontWeight: '700',
   },
 });

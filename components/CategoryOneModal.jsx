@@ -100,21 +100,21 @@ const CategoryOneModal = ({ visible, onClose, onNext, chat_id, user_id, onSaved,
                                 <ThemedText style={styles.footerBtnText}>Next Section</ThemedText>
                             </TouchableOpacity>
                         ) : (
-                            <TouchableOpacity
-                                onPress={async () => {
-                                    const answers = { selectedFace: selectedOption };
-                                    const result = await submitAnswers(chat_id, user_id, answers);
-                                    console.log('Submit Answers Result:', result.status);
-                                    if (result.status == 'success') {
-                                        onNext();
-                                        console.log('Answers submitted successfully');
-                                        onSaved(answers); // accumulate answers in parent if needed
-                                    }
-                                }}
-                                style={styles.footerBtnPink}
-                            >
-                                <ThemedText style={styles.footerBtnText}>Next</ThemedText>
-                            </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={async () => {
+                                const answers = { selectedFace: selectedOption };
+                                const result = await submitAnswers(chat_id, user_id, answers);
+                                console.log('Submit Answers Result:', result.status);
+                                if (result.status == 'success') {
+                                    onNext();
+                                    console.log('Answers submitted successfully');
+                                    onSaved(answers); // accumulate answers in parent if needed
+                                }
+                            }}
+                            style={styles.footerBtnPink}
+                        >
+                            <ThemedText style={styles.footerBtnText}>Next</ThemedText>
+                        </TouchableOpacity>
                         )}
                     </View>
                 </View>

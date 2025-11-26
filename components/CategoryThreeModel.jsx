@@ -28,7 +28,7 @@ const CategoryThreeModal = ({ visible, onClose, onDone, onPrevious, chat_id, use
 
   const handleChange = (value) => {
     if (!viewOnly) {
-      setAnswers({ ...answers, [currentQuestion.stateKey]: value });
+    setAnswers({ ...answers, [currentQuestion.stateKey]: value });
     }
   };
 

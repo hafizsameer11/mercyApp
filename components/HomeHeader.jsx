@@ -4,9 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import ThemedText from './ThemedText';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import useIsTablet from '../hooks/useIsTablet';
 
 const HomeHeader = () => {
   const navigation = useNavigation();
+  const isTablet = useIsTablet();
   const [userName, setUserName] = useState('');
 
   useEffect(() => {
@@ -26,15 +28,15 @@ const HomeHeader = () => {
   }, []);
 
   return (
-    <View style={styles.header}>
-      <ThemedText fontFamily="monaque" weight="bold" style={styles.greeting}>
+    <View style={[styles.header, isTablet && styles.tabletHeader]}>
+      <ThemedText fontFamily="monaque" weight="bold" style={[styles.greeting, isTablet && styles.tabletGreeting]}>
         Hi{userName ? `, ${userName}` : ''}
       </ThemedText>
       <TouchableOpacity
         onPress={() => navigation.navigate('Notification')}
-        style={{ borderRadius: 50, backgroundColor: '#641C37', padding: 5 }}
+        style={[styles.bellButton, isTablet && styles.tabletBellButton]}
       >
-        <Ionicons name="notifications-outline" size={24} color="#fff" />
+        <Ionicons name="notifications-outline" size={isTablet ? 20 : 24} color="#fff" />
       </TouchableOpacity>
     </View>
   );
@@ -55,5 +57,29 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 25,
     fontWeight: '600',
+  },
+  bellButton: {
+    borderRadius: 50,
+    backgroundColor: '#641C37',
+    padding: 5,
+  },
+  // Tablet Styles
+  tabletHeader: {
+    height: 83,
+    padding: 0,
+    paddingTop: 27,
+    paddingHorizontal: 20,
+    backgroundColor: 'transparent',
+  },
+  tabletGreeting: {
+    fontSize: 28, // Increased from 24
+    fontWeight: 'bold',
+  },
+  tabletBellButton: {
+    width: 37,
+    height: 37,
+    padding: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

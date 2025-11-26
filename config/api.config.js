@@ -24,7 +24,7 @@ const API = {
   DOWNLOADED: (messageId) => `${BASE_URL}/downloaded/${messageId}`,
   DELETE_CHAT: (chatId) => `${BASE_URL}/delete-chat/${chatId}`,
   SOCIAL_AUTH: (provider) => `${BASE_URL}/auth/social/${provider}`,
-  
+
   // Questionnaire endpoints
   GET_ALL_QUESTIONNAIRES: `${BASE_URL}/questionnaire/all`,
   QUESTIONNAIRE_PROGRESS: (chatId) => `${BASE_URL}/questionnaire/progress/${chatId}`,
