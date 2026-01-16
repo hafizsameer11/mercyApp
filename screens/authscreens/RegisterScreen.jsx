@@ -272,8 +272,8 @@ const RegisterScreen = () => {
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={true}
               >
-                {/* Social Buttons Row */}
-                <View style={styles.tabletSocialRow}>
+                {/* Social Buttons Row - Hidden */}
+                {/* <View style={styles.tabletSocialRow}>
                   <TouchableOpacity
                     style={styles.tabletSocialButton}
                     disabled={loading}
@@ -297,7 +297,7 @@ const RegisterScreen = () => {
                   <View style={styles.tabletDividerTextBg}>
                     <Text style={styles.tabletDividerText}>or continue with</Text>
                   </View>
-                </View>
+                </View> */}
 
                 {/* Form Fields Container */}
                 <View style={styles.tabletFormFields}>

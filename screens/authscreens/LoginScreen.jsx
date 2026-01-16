@@ -226,8 +226,8 @@ const LoginScreen = () => {
 
               {/* White Form Card */}
               <View style={styles.tabletCard}>
-                {/* Social Buttons Row */}
-                <View style={styles.tabletSocialRow}>
+                {/* Social Buttons Row - Hidden */}
+                {/* <View style={styles.tabletSocialRow}>
                   <TouchableOpacity
                     style={styles.tabletSocialButton}
                     disabled={isLoading}
@@ -251,7 +251,7 @@ const LoginScreen = () => {
                   <View style={styles.tabletDividerTextBg}>
                     <Text style={styles.tabletDividerText}>or continue with</Text>
                   </View>
-                </View>
+                </View> */}
 
                 {/* Email Field */}
                 <Text style={styles.tabletLabel}>Email</Text>

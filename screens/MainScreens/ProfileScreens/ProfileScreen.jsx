@@ -138,12 +138,34 @@ const ProfileScreen = ({ onEditProfilePress, isTabletSplitView = false }) => {
         )}
         <ThemedText style={[styles.title, isTabletSplitView && styles.tabletTitle]}>Profile</ThemedText>
 
-        {localAvatar ? (
-          <Image source={{ uri: localAvatar }} style={styles.avatar} onError={(e)=>console.log('Local avatar failed:', localAvatar, e?.nativeEvent)} />
-        ) : user?.profile_picture ? (
-          <Image source={{ uri: user.profile_picture }} style={styles.avatar} onError={(e)=>console.log('Remote avatar failed:', user?.profile_picture, e?.nativeEvent)} />
+        {localAvatar && typeof localAvatar === 'string' && localAvatar.trim().length > 0 ? (
+          <Image 
+            source={{ uri: localAvatar }} 
+            style={styles.avatar} 
+            onError={(e) => {
+              console.log('Local avatar failed:', localAvatar, e?.nativeEvent);
+              // Fallback to default if local avatar fails
+            }}
+            defaultSource={require('../../../assets/Ellipse 18.png')}
+            resizeMode="cover"
+          />
+        ) : user?.profile_picture && typeof user.profile_picture === 'string' && user.profile_picture.trim().length > 0 ? (
+          <Image 
+            source={{ uri: user.profile_picture }} 
+            style={styles.avatar} 
+            onError={(e) => {
+              console.log('Remote avatar failed:', user?.profile_picture, e?.nativeEvent);
+              // Fallback to default if remote avatar fails
+            }}
+            defaultSource={require('../../../assets/Ellipse 18.png')}
+            resizeMode="cover"
+          />
         ) : (
-          <Image source={require('../../../assets/Ellipse 18.png')} style={styles.avatar} />
+          <Image 
+            source={require('../../../assets/Ellipse 18.png')} 
+            style={styles.avatar}
+            resizeMode="cover"
+          />
         )}
 
         <View style={{ width: 370, marginTop: 20 }}>
@@ -224,10 +246,15 @@ const ProfileScreen = ({ onEditProfilePress, isTabletSplitView = false }) => {
 
         <LinkCard
           onPress={() => {
+            try {
             if (isTabletSplitView && onEditProfilePress) {
               onEditProfilePress();
             } else {
               navigation.navigate('EditProfile');
+              }
+            } catch (error) {
+              console.error('Navigation error:', error);
+              Alert.alert('Error', 'Could not open Edit Profile. Please try again.');
             }
           }}
           icon={<MaterialIcons name="person-outline" size={22} color="#393b4b" />}

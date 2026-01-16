@@ -17,7 +17,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.editsbymercy.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to select and update your profile picture.",
+        "NSPhotoLibraryAddUsageDescription": "This app needs access to save photos to your photo library.",
+        "NSCameraUsageDescription": "This app needs access to your camera to take photos for your profile picture."
       }
     },
     "android": {
@@ -30,7 +33,10 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
       "package": "com.editsbymercy.app"
     },
@@ -42,6 +48,15 @@
       "expo-font",
       "expo-web-browser"
     ],
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/82288cf8-6085-409a-8ac5-d9a5449171b2"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "extra": {
       "eas": {
         "projectId": "82288cf8-6085-409a-8ac5-d9a5449171b2"

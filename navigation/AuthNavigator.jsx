@@ -23,6 +23,7 @@ import FlutterwaveWebView from '../components/FlutterwaveWebView';
 import ForwardMessageScreen from '../screens/MainScreens/ChatScreens/ForwardMessageScreen';
 import LikedFeedScreen from '../screens/MainScreens/LikedFeedScreen';
 import ChatDetails from '../screens/MainScreens/ChatScreens/ChatDetails';
+import DeleteAccount from '../screens/MainScreens/ProfileScreens/DeleteAccount';
 
 
 
@@ -52,6 +53,7 @@ const AuthNavigator = () => {
       <Stack.Screen name="FlutterwaveWebView" component={FlutterwaveWebView} />
       <Stack.Screen name="LikedFeed" component={LikedFeedScreen} />
       <Stack.Screen name="ChatDetails" component={ChatDetails} />
+      <Stack.Screen name="DeleteAccount" component={DeleteAccount} />
 
 
 

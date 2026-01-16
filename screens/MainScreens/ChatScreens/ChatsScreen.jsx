@@ -150,6 +150,7 @@ const ChatScreen = ({ onChatSelect, onFirstChatReady, isTabletSplitView = false 
   const [userRole, setUserRole] = useState('');
   const [createLabelVisible, setCreateLabelVisible] = useState(false);
   const [deletingChatId, setDeletingChatId] = useState(null);
+  const [deletedChatIds, setDeletedChatIds] = useState(new Set()); // Track deleted chat IDs
 
   const navigation = useNavigation();
   const queryClient = useQueryClient();
@@ -419,6 +420,11 @@ const ChatScreen = ({ onChatSelect, onFirstChatReady, isTabletSplitView = false 
   const filteredChats = useMemo(() => {
     let filtered = chats.map(c => ({ ...c }));
 
+    // Filter out deleted chats
+    if (deletedChatIds.size > 0) {
+      filtered = filtered.filter(chat => !deletedChatIds.has(String(chat.id)));
+    }
+
     // Category
     if (selectedCategory !== 'All') {
       filtered = filtered.filter(
@@ -488,7 +494,7 @@ const ChatScreen = ({ onChatSelect, onFirstChatReady, isTabletSplitView = false 
     });
 
     return filtered;
-  }, [chats, selectedCategory, selectedStatus, selectedLabel, dateSort, search, peerTab, userRole, labels]);
+  }, [chats, selectedCategory, selectedStatus, selectedLabel, dateSort, search, peerTab, userRole, labels, deletedChatIds]);
 
   // Auto-select first chat in tablet split view mode
   useEffect(() => {
@@ -551,6 +557,12 @@ const ChatScreen = ({ onChatSelect, onFirstChatReady, isTabletSplitView = false 
     // Prevent concurrent deletions
     if (deletingChatId) return;
     
+    // Only allow customers to delete chats
+    if (userRole !== 'user') {
+      alert('Only customers can delete chats.');
+      return;
+    }
+    
     try {
       setDeletingChatId(chatId);
       const token = await AsyncStorage.getItem('token');
@@ -578,8 +590,13 @@ const ChatScreen = ({ onChatSelect, onFirstChatReady, isTabletSplitView = false 
       );
 
       if (response.data.status === 'success') {
-        // Refresh the chat list to ensure consistency
-        queryClient.invalidateQueries({ queryKey: ['chats'] });
+        // Add to deleted chat IDs set to permanently filter it out
+        setDeletedChatIds(prev => new Set([...prev, String(chatId)]));
+        
+        // Keep the optimistic update - don't invalidate immediately
+        // This prevents the chat from reappearing if backend hasn't fully processed
+        // The next natural poll/refetch (every 10s) will sync with server state
+        // The deletedChatIds filter ensures it stays removed from UI even after refetch
         setDeletingChatId(null);
       } else {
         // Revert optimistic update on failure
@@ -832,8 +849,8 @@ const ChatScreen = ({ onChatSelect, onFirstChatReady, isTabletSplitView = false 
               </TouchableOpacity>
             )}
 
-            {/* Delete Chat Option - Only for regular users */}
-            {userDetail?.role === 'user' && (
+            {/* Delete Chat Option - Available only for customers */}
+            {userRole === 'user' && (
               <TouchableOpacity 
                 style={[styles.optionsItem, { borderTopWidth: 1, borderTopColor: '#eee', marginTop: 8, paddingTop: 12 }]} 
                 onPress={() => {

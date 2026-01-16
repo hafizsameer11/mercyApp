@@ -39,6 +39,7 @@ import {
     Platform,
     TouchableWithoutFeedback,
     Keyboard,
+    Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -175,6 +176,10 @@ const ChatScreen = () => {
     const [editMessageModalVisible, setEditMessageModalVisible] = useState(false);
     const [selectedMessage, setSelectedMessage] = useState(null);
     const [editMessageText, setEditMessageText] = useState('');
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedMessages, setSelectedMessages] = useState(new Set());
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isForwarding, setIsForwarding] = useState(false);
 
     const [forwardedMessage, setForwardedMessage] = useState(null);
 
@@ -190,7 +195,7 @@ const ChatScreen = () => {
     const [dynamicQuestionnaireData, setDynamicQuestionnaireData] = useState(questionnaireData); // Use hardcoded as fallback
 
     const navigation = useNavigation();
-    const { agent, service, messages: initialMessages = [] } = useRoute().params;
+    const { agent, service, messages: initialMessages = [], user: forwardedUserName } = useRoute().params;
     const [userRole, setUserRole] = useState('');
 
     // Online status hooks - Track other user's status and keep current user online
@@ -1374,17 +1379,31 @@ const ChatScreen = () => {
 
     const renderMessage = ({ item }) => {
         const isMyMessage = item.sender === user?.id;
+        const isSelected = selectedMessages.has(item.id);
+        
         if (item.type === 'image') {
             const isMyMsgImage = item.sender === user?.id;
 
             return (
                 <View
-                    style={[styles.msgRow, isMyMsgImage ? styles.rightMsg : styles.leftMsg]}
+                    style={[styles.msgRow, isMyMsgImage ? styles.rightMsg : styles.leftMsg, selectionMode && { flexDirection: 'row', alignItems: 'center' }]}
                     onLayout={(e) => {
                         const y = e.nativeEvent.layout.y;
                         itemOffsetsRef.current[String(item.id)] = y;
                     }}
                 >
+                    {selectionMode && (
+                        <TouchableOpacity
+                            onPress={() => toggleMessageSelection(item.id)}
+                            style={{ marginRight: 8, marginLeft: isMyMsgImage ? 8 : 0, marginRight: isMyMsgImage ? 0 : 8 }}
+                        >
+                            <Ionicons 
+                                name={isSelected ? "checkbox" : "checkbox-outline"} 
+                                size={24} 
+                                color={isSelected ? "#992C55" : "#999"} 
+                            />
+                        </TouchableOpacity>
+                    )}
                     <View
                         style={[
                             {
@@ -1433,14 +1452,18 @@ const ChatScreen = () => {
                         ) : (
                             <Pressable
                                 onPress={() => { 
-                                    if (!item.is_deleted) {
+                                    if (selectionMode) {
+                                        toggleMessageSelection(item.id);
+                                    } else if (!item.is_deleted) {
                                         setPreviewImages([item]); 
                                         setImagePreviewVisible(true); 
                                     }
                                 }}
                                 onLongPress={() => {
-                                    setSelectedMessage(item);
-                                    setMessageActionModalVisible(true);
+                                    if (!selectionMode) {
+                                        setSelectedMessage(item);
+                                        setMessageActionModalVisible(true);
+                                    }
                                 }}
                                 delayLongPress={300}
                                 hitSlop={8}
@@ -1494,18 +1517,37 @@ const ChatScreen = () => {
         if (item.type === 'document' || item.type === 'file') {
             return (
                 <TouchableOpacity
+                    onPress={() => {
+                        if (selectionMode) {
+                            toggleMessageSelection(item.id);
+                        }
+                    }}
                     onLongPress={() => {
-                        if (item.is_deleted) return; // Don't show actions for deleted messages
-                        setSelectedMessage(item);
-                        setMessageActionModalVisible(true);
+                        if (!selectionMode) {
+                            if (item.is_deleted) return; // Don't show actions for deleted messages
+                            setSelectedMessage(item);
+                            setMessageActionModalVisible(true);
+                        }
                     }}
                     delayLongPress={300}
                 >
-                    <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg]}
+                    <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg, selectionMode && { flexDirection: 'row', alignItems: 'center' }]}
                         onLayout={(e) => {
                             const y = e.nativeEvent.layout.y;
                             itemOffsetsRef.current[String(item.id)] = y;
                         }}>
+                    {selectionMode && (
+                        <TouchableOpacity
+                            onPress={() => toggleMessageSelection(item.id)}
+                            style={{ marginRight: 8, marginLeft: isMyMessage ? 8 : 0, marginRight: isMyMessage ? 0 : 8 }}
+                        >
+                            <Ionicons 
+                                name={isSelected ? "checkbox" : "checkbox-outline"} 
+                                size={24} 
+                                color={isSelected ? "#992C55" : "#999"} 
+                            />
+                        </TouchableOpacity>
+                    )}
                         {item.reply_to_id && (
                             <TouchableOpacity
                                 activeOpacity={0.7}
@@ -1555,18 +1597,37 @@ const ChatScreen = () => {
         if (item.type === 'voice') {
             return (
                 <TouchableOpacity
+                    onPress={() => {
+                        if (selectionMode) {
+                            toggleMessageSelection(item.id);
+                        }
+                    }}
                     onLongPress={() => {
-                        if (item.is_deleted) return; // Don't show actions for deleted messages
-                        setSelectedMessage(item);
-                        setMessageActionModalVisible(true);
+                        if (!selectionMode) {
+                            if (item.is_deleted) return; // Don't show actions for deleted messages
+                            setSelectedMessage(item);
+                            setMessageActionModalVisible(true);
+                        }
                     }}
                     delayLongPress={300}
                 >
-                    <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg]}
+                    <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg, selectionMode && { flexDirection: 'row', alignItems: 'center' }]}
                         onLayout={(e) => {
                             const y = e.nativeEvent.layout.y;
                             itemOffsetsRef.current[String(item.id)] = y;
                         }}>
+                    {selectionMode && (
+                        <TouchableOpacity
+                            onPress={() => toggleMessageSelection(item.id)}
+                            style={{ marginRight: 8, marginLeft: isMyMessage ? 8 : 0, marginRight: isMyMessage ? 0 : 8 }}
+                        >
+                            <Ionicons 
+                                name={isSelected ? "checkbox" : "checkbox-outline"} 
+                                size={24} 
+                                color={isSelected ? "#992C55" : "#999"} 
+                            />
+                        </TouchableOpacity>
+                    )}
                         {item.reply_to_id && (
                             <TouchableOpacity
                                 activeOpacity={0.7}
@@ -1624,6 +1685,12 @@ const ChatScreen = () => {
             return (
                 <TouchableOpacity
                     onLongPress={() => {
+                        // Prevent forwarding temp/pending messages
+                        const idStr = String(item.id || '');
+                        if (idStr.startsWith('temp-') || idStr.startsWith('local-') || item.pending === true) {
+                            alert('Cannot forward pending messages. Please wait for the message to be sent first.');
+                            return;
+                        }
                         setForwardedMessage(item);
                         navigation.navigate('ForwardChat', { forwardMessage: item });
                     }}
@@ -1785,6 +1852,12 @@ const ChatScreen = () => {
             return (
                 <TouchableOpacity
                     onLongPress={() => {
+                        // Prevent forwarding temp/pending messages
+                        const idStr = String(item.id || '');
+                        if (idStr.startsWith('temp-') || idStr.startsWith('local-') || item.pending === true) {
+                            alert('Cannot forward pending messages. Please wait for the message to be sent first.');
+                            return;
+                        }
                         setForwardedMessage(item);
                         navigation.navigate('ForwardChat', { forwardMessage: item });
                     }}
@@ -1897,12 +1970,24 @@ const ChatScreen = () => {
 
             return (
                 <View
-                    style={[styles.msgRow, mine ? styles.rightMsg : styles.leftMsg]}
+                    style={[styles.msgRow, mine ? styles.rightMsg : styles.leftMsg, selectionMode && { flexDirection: 'row', alignItems: 'center' }]}
                     onLayout={(e) => {
                         const y = e.nativeEvent.layout.y;
                         itemOffsetsRef.current[String(item.id)] = y;
                     }}
                 >
+                    {selectionMode && (
+                        <TouchableOpacity
+                            onPress={() => toggleMessageSelection(item.id)}
+                            style={{ marginRight: 8, marginLeft: mine ? 8 : 0, marginRight: mine ? 0 : 8 }}
+                        >
+                            <Ionicons 
+                                name={isSelected ? "checkbox" : "checkbox-outline"} 
+                                size={24} 
+                                color={isSelected ? "#992C55" : "#999"} 
+                            />
+                        </TouchableOpacity>
+                    )}
                     {item.reply_to_id && (
                         <TouchableOpacity
                             activeOpacity={0.7}
@@ -1994,17 +2079,36 @@ const ChatScreen = () => {
         }
         return (
             <TouchableOpacity
+                onPress={() => {
+                    if (selectionMode) {
+                        toggleMessageSelection(item.id);
+                    }
+                }}
                 onLongPress={() => {
-                    if (item.is_deleted) return; // Don't show actions for deleted messages
-                    setSelectedMessage(item);
-                    setMessageActionModalVisible(true);
+                    if (!selectionMode) {
+                        if (item.is_deleted) return; // Don't show actions for deleted messages
+                        setSelectedMessage(item);
+                        setMessageActionModalVisible(true);
+                    }
                 }}
             >
-                <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg]}
+                <View style={[styles.msgRow, isMyMessage ? styles.rightMsg : styles.leftMsg, selectionMode && { flexDirection: 'row', alignItems: 'center' }]}
                     onLayout={(e) => {
                         const y = e.nativeEvent.layout.y;
                         itemOffsetsRef.current[String(item.id)] = y;
                     }}>
+                    {selectionMode && (
+                        <TouchableOpacity
+                            onPress={() => toggleMessageSelection(item.id)}
+                            style={{ marginRight: 8, marginLeft: isMyMessage ? 8 : 0, marginRight: isMyMessage ? 0 : 8 }}
+                        >
+                            <Ionicons 
+                                name={isSelected ? "checkbox" : "checkbox-outline"} 
+                                size={24} 
+                                color={isSelected ? "#992C55" : "#999"} 
+                            />
+                        </TouchableOpacity>
+                    )}
                     {item.reply_to_id && (
                         <TouchableOpacity
                             activeOpacity={0.7}
@@ -2101,6 +2205,138 @@ const ChatScreen = () => {
         }
     };
 
+    // Mass delete messages function
+    const deleteMultipleMessages = async (messageIds) => {
+        if (!messageIds || messageIds.length === 0) return;
+        
+        setIsDeleting(true);
+        try {
+            const token = await AsyncStorage.getItem('token');
+            let successCount = 0;
+            let failCount = 0;
+
+            // Delete messages one by one (backend supports one at a time)
+            for (const messageId of messageIds) {
+                try {
+                    const response = await axios.post(API.DELETE_MESSAGE(messageId), {}, {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            Accept: 'application/json',
+                        },
+                    });
+
+                    if (response.data.status === 'success') {
+                        successCount++;
+                        // Update local state
+                        setMessages(prev => prev.map(msg =>
+                            msg.id === messageId
+                                ? { ...msg, is_deleted: true, text: 'This message was deleted' }
+                                : msg
+                        ));
+                    } else {
+                        failCount++;
+                    }
+                } catch (error) {
+                    console.error(`Failed to delete message ${messageId}:`, error);
+                    failCount++;
+                }
+            }
+
+            // Refresh messages
+            messagesQuery.refetch();
+            
+            // Clear selection
+            setSelectedMessages(new Set());
+            setSelectionMode(false);
+
+            if (failCount === 0) {
+                alert(`✅ Successfully deleted ${successCount} message(s)`);
+            } else {
+                alert(`⚠️ Deleted ${successCount} message(s), ${failCount} failed`);
+            }
+        } catch (error) {
+            console.error('Mass delete error:', error);
+            alert('Failed to delete messages. Please try again.');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    // Mass forward messages function
+    const forwardMultipleMessages = async (messageIds, receiverId) => {
+        if (!messageIds || messageIds.length === 0 || !receiverId) return;
+        
+        setIsForwarding(true);
+        try {
+            const token = await AsyncStorage.getItem('token');
+            let successCount = 0;
+            let failCount = 0;
+
+            // Forward messages one by one (backend supports one at a time)
+            for (const messageId of messageIds) {
+                try {
+                    const response = await axios.post(
+                        'https://editbymercy.hmstech.xyz/api/forward-message',
+                        {
+                            original_message_id: messageId,
+                            receiver_id: receiverId,
+                        },
+                        {
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                                Accept: 'application/json',
+                            },
+                        }
+                    );
+
+                    if (response.data?.status === 'success') {
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+                } catch (error) {
+                    console.error(`Failed to forward message ${messageId}:`, error);
+                    failCount++;
+                }
+            }
+
+            // Clear selection
+            setSelectedMessages(new Set());
+            setSelectionMode(false);
+
+            if (failCount === 0) {
+                alert(`✅ Successfully forwarded ${successCount} message(s)`);
+            } else {
+                alert(`⚠️ Forwarded ${successCount} message(s), ${failCount} failed`);
+            }
+        } catch (error) {
+            console.error('Mass forward error:', error);
+            alert('Failed to forward messages. Please try again.');
+        } finally {
+            setIsForwarding(false);
+        }
+    };
+
+    // Toggle message selection
+    const toggleMessageSelection = (messageId) => {
+        // Prevent selecting temp/pending messages
+        const idStr = String(messageId);
+        if (idStr.startsWith('temp-') || idStr.startsWith('local-')) {
+            alert('Cannot select pending messages. Please wait for the message to be sent first.');
+            return;
+        }
+        
+        setSelectedMessages(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(messageId)) {
+                newSet.delete(messageId);
+            } else {
+                newSet.add(messageId);
+            }
+            return newSet;
+        });
+    };
+
     // Edit message function
     const editMessage = async (messageId, newText) => {
         try {
@@ -2147,14 +2383,17 @@ const ChatScreen = () => {
                         <View style={styles.container}>
                             {/* Top Bar */}
                             <View style={styles.topBar}>
-                                <TouchableOpacity onPress={() => navigation.goBack()}>
-                                    <Ionicons name="chevron-back" size={28} color="#fff" />
+                                <TouchableOpacity 
+                                    onPress={() => navigation.goBack()}
+                                    style={styles.backButton}
+                                >
+                                    <Ionicons name="chevron-back" size={24} color="#fff" />
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
                                     onPress={openChatDetails}
                                     activeOpacity={0.85}
-                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginLeft: 10 }}
                                 >
                                     <View style={{ position: 'relative' }}>
                                         <Image source={agent.image} style={styles.agentPic} />
@@ -2166,7 +2405,7 @@ const ChatScreen = () => {
                                         />
                                     </View>
                                     <View style={{ flex: 1 }}>
-                                        <ThemedText style={styles.agentName}>{agent.name}</ThemedText>
+                                        <ThemedText style={styles.agentName}>{forwardedUserName || agent.name}</ThemedText>
                                         {/* Show loading or online status */}
                                         {statusLoading ? (
                                             <ThemedText style={[styles.online, { color: '#9E9E9E' }]}>Loading...</ThemedText>
@@ -2180,12 +2419,117 @@ const ChatScreen = () => {
                                     </View>
                                 </TouchableOpacity>
 
-                                {userRole === 'support' && (
+                                {userRole === 'support' && !selectionMode && (
                                     <TouchableOpacity onPress={() => setModalVisible(true)} style={{ marginLeft: 'auto', marginRight: 10 }}>
                                         <Ionicons name="ellipsis-vertical" size={22} color="#fff" />
                                     </TouchableOpacity>
                                 )}
+                                {selectionMode && (
+                                    <TouchableOpacity 
+                                        onPress={() => {
+                                            setSelectionMode(false);
+                                            setSelectedMessages(new Set());
+                                        }} 
+                                        style={{ marginLeft: 'auto', marginRight: 10 }}
+                                    >
+                                        <Ionicons name="close" size={22} color="#fff" />
+                                    </TouchableOpacity>
+                                )}
+                                {!selectionMode && (
+                                    <TouchableOpacity 
+                                        onPress={() => setSelectionMode(true)} 
+                                        style={{ marginRight: 10 }}
+                                    >
+                                        <Ionicons name="checkmark-circle-outline" size={22} color="#fff" />
+                                    </TouchableOpacity>
+                                )}
                             </View>
+                            {selectionMode && selectedMessages.size > 0 && (
+                                <View style={{
+                                    flexDirection: 'row',
+                                    backgroundColor: '#992C55',
+                                    paddingVertical: 12,
+                                    paddingHorizontal: 16,
+                                    justifyContent: 'space-around',
+                                    alignItems: 'center',
+                                    borderBottomWidth: 1,
+                                    borderColor: '#e5e5e5'
+                                }}>
+                                    <ThemedText style={{ color: '#fff', fontWeight: '600' }}>
+                                        {selectedMessages.size} selected
+                                    </ThemedText>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            const messageIds = Array.from(selectedMessages);
+                                            const count = messageIds.length;
+                                            
+                                            Alert.alert(
+                                                'Delete Messages',
+                                                `Are you sure you want to delete ${count} message${count > 1 ? 's' : ''}? This action cannot be undone.`,
+                                                [
+                                                    {
+                                                        text: 'Cancel',
+                                                        style: 'cancel',
+                                                    },
+                                                    {
+                                                        text: 'Delete',
+                                                        style: 'destructive',
+                                                        onPress: () => deleteMultipleMessages(messageIds),
+                                                    },
+                                                ],
+                                                { cancelable: true }
+                                            );
+                                        }}
+                                        disabled={isDeleting}
+                                        style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            backgroundColor: '#ff4444',
+                                            paddingHorizontal: 16,
+                                            paddingVertical: 8,
+                                            borderRadius: 20
+                                        }}
+                                    >
+                                        {isDeleting ? (
+                                            <ActivityIndicator size="small" color="#fff" />
+                                        ) : (
+                                            <>
+                                                <Ionicons name="trash-outline" size={18} color="#fff" />
+                                                <ThemedText style={{ color: '#fff', marginLeft: 6, fontWeight: '600' }}>
+                                                    Delete
+                                                </ThemedText>
+                                            </>
+                                        )}
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            const messageIds = Array.from(selectedMessages);
+                                            setForwardedMessage({ ids: messageIds });
+                                            navigation.navigate('ForwardChat', { forwardMessages: messageIds });
+                                        }}
+                                        disabled={isForwarding}
+                                        style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            backgroundColor: '#4CAF50',
+                                            paddingHorizontal: 16,
+                                            paddingVertical: 8,
+                                            borderRadius: 20
+                                        }}
+                                    >
+                                        {isForwarding ? (
+                                            <ActivityIndicator size="small" color="#fff" />
+                                        ) : (
+                                            <>
+                                                <Ionicons name="arrow-redo-outline" size={18} color="#fff" />
+                                                <ThemedText style={{ color: '#fff', marginLeft: 6, fontWeight: '600' }}>
+                                                    Forward
+                                                </ThemedText>
+                                            </>
+                                        )}
+                                    </TouchableOpacity>
+                                </View>
+                            )}
                             {isMessagesLoading ? (
                                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                                     <ActivityIndicator size="large" color="#992C55" />
@@ -2284,7 +2628,7 @@ const ChatScreen = () => {
                                 )
                             }
                             {
-                                replyTo && (
+                                replyTo && !selectionMode && (
                                     <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#f2f2f2', borderTopWidth: 1, borderColor: '#e5e5e5' }}>
                                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                             <Ionicons name="return-up-forward-outline" size={18} color="#992C55" />
@@ -2302,10 +2646,11 @@ const ChatScreen = () => {
                                 )
                             }
 
-                            <View style={[styles.inputWrapper, {
-                                // Only add safe area padding when keyboard is closed AND there are navigation buttons
-                                paddingBottom: !isKeyboardVisible ? (insets.bottom > 0 ? insets.bottom : 10) : 0
-                            }]}>
+                            {!selectionMode && (
+                                <View style={[styles.inputWrapper, {
+                                    // Only add safe area padding when keyboard is closed AND there are navigation buttons
+                                    paddingBottom: !isKeyboardVisible ? (insets.bottom > 0 ? insets.bottom : 10) : 0
+                                }]}>
                                 <View style={styles.inputRow}>
                                     <TouchableOpacity style={{ marginTop: 15 }} onPress={() => {
                                         Keyboard.dismiss();
@@ -2320,7 +2665,17 @@ const ChatScreen = () => {
                                         onChangeText={setInputMessage}
                                         onSubmitEditing={sendMessage}
                                         onFocus={() => setShowEmojiPicker(false)}
+                                        multiline
+                                        returnKeyType="default"
                                     />
+                                    <TouchableOpacity 
+                                        style={{ marginTop: 15, marginRight: 8 }} 
+                                        onPress={() => {
+                                            setInputMessage(prev => prev + '\n');
+                                        }}
+                                    >
+                                        <Ionicons name="return-down-forward" size={24} color="#555" />
+                                    </TouchableOpacity>
                                     <TouchableOpacity style={{ marginTop: 15 }} onPress={() => setAttachmentModal(true)}>
                                         <Ionicons name="attach" size={28} color="#555" />
                                     </TouchableOpacity>
@@ -2346,6 +2701,7 @@ const ChatScreen = () => {
                                     )}
                                 </View>
                             </View>
+                            )}
 
                             {
                                 userRole === 'support' && (
@@ -3024,9 +3380,22 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
     },
     topBar: {
-        flexDirection: 'row', alignItems: 'center',
-        backgroundColor: '#992C55', gap: 10,
-        paddingTop: 60, paddingBottom: 10, paddingLeft: 20,
+        flexDirection: 'row', 
+        alignItems: 'center',
+        backgroundColor: '#4a1227',
+        paddingTop: 70,
+        paddingBottom: 20,
+        paddingHorizontal: 20,
+        justifyContent: 'space-between',
+    },
+    backButton: {
+        borderRadius: 50,
+        backgroundColor: '#641C37',
+        padding: 5,
+        width: 34,
+        height: 34,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     agentPic: { width: 42, height: 42, borderRadius: 21 },
     agentName: { color: '#fff', fontSize: 16, fontWeight: '700' },

@@ -37,6 +37,7 @@
     "expo-notifications": "~0.31.4",
     "expo-sharing": "~13.1.5",
     "expo-status-bar": "~2.2.3",
+    "expo-updates": "~0.28.17",
     "expo-web-browser": "~14.2.0",
     "nativewind": "^4.1.23",
     "react": "19.0.0",

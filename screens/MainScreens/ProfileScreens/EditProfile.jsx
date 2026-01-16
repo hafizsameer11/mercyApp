@@ -8,6 +8,7 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -26,22 +27,96 @@ const EDIT_PROFILE_URL = `${API_BASE}/api/edit-profile`;
 const getAvatarKey = (user) => `avatar:${user?.id ?? user?.email ?? 'guest'}`;
 
 const ensureDir = async (dir) => {
+  try {
+    if (!dir) {
+      throw new Error('Directory path is required');
+    }
   const info = await FileSystem.getInfoAsync(dir);
   if (!info.exists) {
     await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+    }
+  } catch (error) {
+    console.error('ensureDir error:', error);
+    throw error;
   }
 };
 
 const saveImageLocally = async (srcUri, user) => {
+  try {
+    if (!srcUri || typeof srcUri !== 'string' || srcUri.trim().length === 0) {
+      throw new Error('Invalid source URI');
+    }
+    
+    if (!user || (typeof user !== 'object')) {
+      throw new Error('Invalid user object');
+    }
+
+    // Validate document directory exists
+    if (!FileSystem.documentDirectory) {
+      throw new Error('File system not available');
+    }
+
   const dir = FileSystem.documentDirectory + 'avatars/';
+    
+    // Ensure directory exists with error handling
+    try {
   await ensureDir(dir);
+    } catch (dirError) {
+      console.error('Failed to create directory:', dirError);
+      throw new Error('Could not create storage directory');
+    }
+    
   const fileName = `${(user?.id ?? user?.email ?? 'guest')}.jpg`;
   const dest = dir + fileName;
-  // copy file to app storage so it persists
+    
+    // Verify source file exists before copying
+    let sourceInfo;
+    try {
+      sourceInfo = await FileSystem.getInfoAsync(srcUri);
+    } catch (infoError) {
+      console.error('Failed to get source file info:', infoError);
+      throw new Error('Could not access source image');
+    }
+    
+    if (!sourceInfo || !sourceInfo.exists) {
+      throw new Error('Source image file does not exist');
+    }
+    
+    // Copy file to app storage with error handling
+    try {
   await FileSystem.copyAsync({ from: srcUri, to: dest });
+    } catch (copyError) {
+      console.error('File copy error:', copyError);
+      throw new Error('Failed to copy image file');
+    }
+    
+    // Verify destination file was created
+    let destInfo;
+    try {
+      destInfo = await FileSystem.getInfoAsync(dest);
+    } catch (destInfoError) {
+      console.error('Failed to verify destination file:', destInfoError);
+      throw new Error('Could not verify saved image');
+    }
+    
+    if (!destInfo || !destInfo.exists) {
+      throw new Error('Failed to save image file');
+    }
+    
+    // Save path to AsyncStorage
   const key = getAvatarKey(user);
+    try {
   await AsyncStorage.setItem(key, dest);
+    } catch (storageError) {
+      console.error('Failed to save path to storage:', storageError);
+      // Don't throw here - the file is saved, just the path storage failed
+    }
+    
   return dest;
+  } catch (error) {
+    console.error('saveImageLocally error:', error);
+    throw error;
+  }
 };
 
 const loadLocalAvatar = async (user) => {
@@ -66,52 +141,138 @@ const EditProfile = ({ isTabletSplitView = false, onSave }) => {
     (async () => {
       try {
         const storedUserRaw = await AsyncStorage.getItem('user');
-        const storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : null;
+        if (!storedUserRaw) {
+          console.warn('No user data found in storage');
+          return;
+        }
+
+        const storedUser = JSON.parse(storedUserRaw);
+        if (!storedUser) {
+          console.warn('Failed to parse user data');
+          return;
+        }
+
         setUser(storedUser);
         setUsername(storedUser?.name || '');
         setPhone(storedUser?.phone || '');
 
+        try {
         const local = await loadLocalAvatar(storedUser);
         if (local) {
+            // Verify local file exists before using it
+            const localInfo = await FileSystem.getInfoAsync(local);
+            if (localInfo.exists) {
           setPhotoUri(local);
+            } else if (storedUser?.profile_picture) {
+              setPhotoUri(storedUser.profile_picture);
+            }
         } else if (storedUser?.profile_picture) {
           setPhotoUri(storedUser.profile_picture); // fallback to backend URL for preview
+          }
+        } catch (avatarError) {
+          console.error('Error loading avatar:', avatarError);
+          // Fallback to profile_picture if local load fails
+          if (storedUser?.profile_picture) {
+            setPhotoUri(storedUser.profile_picture);
+          }
         }
       } catch (e) {
-        console.log('Prefill error:', e);
+        console.error('Prefill error:', e);
+        Alert.alert('Error', 'Failed to load profile data. Please try again.');
       }
     })();
   }, []);
 
   const pickPhoto = async () => {
+    // Prevent multiple simultaneous calls
+    if (savingPhoto) {
+      return;
+    }
+
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please allow photo library access.');
+      // Check if user exists before proceeding
+      if (!user) {
+        Alert.alert('Error', 'User information not available. Please try again.');
         return;
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      // Request permissions with better error handling
+      let permissionResult;
+      try {
+        permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      } catch (permError) {
+        console.error('Permission request error:', permError);
+        Alert.alert('Error', 'Could not request photo library permission. Please check your device settings.');
+        return;
+      }
+
+      if (permissionResult.status !== 'granted') {
+        Alert.alert('Permission needed', 'Please allow photo library access in your device settings.');
+        return;
+      }
+
+      // Configure image picker options
+      const pickerOptions = {
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.9,
-      });
-      if (result.canceled) return;
+      };
 
-      const asset = result.assets?.[0];
-      if (!asset?.uri) return;
+      // Safely add mediaTypes if available (may not exist in all versions)
+      if (ImagePicker.MediaTypeOptions && ImagePicker.MediaTypeOptions.Images) {
+        pickerOptions.mediaTypes = ImagePicker.MediaTypeOptions.Images;
+      }
+
+      // Note: Removed presentationStyle as it may not be available in all expo-image-picker versions
+      // and can cause crashes on iPad. The default presentation should work fine.
+
+      let result;
+      try {
+        result = await ImagePicker.launchImageLibraryAsync(pickerOptions);
+      } catch (pickerError) {
+        console.error('Image picker launch error:', pickerError);
+        Alert.alert('Error', 'Could not open photo library. Please try again.');
+        return;
+      }
+      
+      if (!result || result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      if (!asset || !asset.uri) {
+        console.warn('No valid asset or URI in picker result');
+        return;
+      }
+
+      // Validate URI before proceeding
+      if (typeof asset.uri !== 'string' || asset.uri.trim().length === 0) {
+        Alert.alert('Error', 'Invalid image selected. Please try again.');
+        return;
+      }
 
       // Save locally right away
       setSavingPhoto(true);
+      try {
       const savedPath = await saveImageLocally(asset.uri, user);
+        if (savedPath && typeof savedPath === 'string') {
       setPhotoUri(savedPath);
+          // Don't show alert on success to avoid blocking UI
+        } else {
+          throw new Error('Failed to save image path');
+        }
+      } catch (saveError) {
+        console.error('Error saving image locally:', saveError);
+        const errorMessage = saveError?.message || 'Could not save the selected image. Please try again.';
+        Alert.alert('Error', errorMessage);
+      } finally {
       setSavingPhoto(false);
-      Alert.alert('Saved', 'Profile photo saved locally.');
+      }
     } catch (e) {
-      console.log('pickPhoto/save error:', e);
+      console.error('pickPhoto error:', e);
       setSavingPhoto(false);
-      Alert.alert('Error', 'Could not save the selected image.');
+      const errorMessage = e?.message || 'Could not open image picker. Please try again.';
+      Alert.alert('Error', errorMessage);
     }
   };
 
@@ -187,16 +348,41 @@ const EditProfile = ({ isTabletSplitView = false, onSave }) => {
 
       {/* Avatar */}
       <View style={styles.avatarWrap}>
-        <TouchableOpacity onPress={pickPhoto} activeOpacity={0.8} style={{ alignSelf: 'center' }}>
+        <TouchableOpacity 
+          onPress={() => {
+            try {
+              if (!user) {
+                Alert.alert('Error', 'User information not loaded. Please wait a moment and try again.');
+                return;
+              }
+              if (savingPhoto) {
+                return; // Prevent multiple taps
+              }
+              pickPhoto();
+            } catch (error) {
+              console.error('Error in photo tap handler:', error);
+              Alert.alert('Error', 'Something went wrong. Please try again.');
+            }
+          }} 
+          activeOpacity={0.8} 
+          style={{ alignSelf: 'center' }}
+          disabled={!user || savingPhoto}
+        >
           <View style={{ position: 'relative' }}>
             <Image
               source={
-                photoUri
+                photoUri && typeof photoUri === 'string' && photoUri.trim().length > 0
                   ? { uri: photoUri }
                   : require('../../../assets/Ellipse 18.png')
               }
               style={styles.avatar}
-              onError={(e) => console.log('Preview image load failed:', photoUri, e?.nativeEvent)}
+              onError={(e) => {
+                console.log('Preview image load failed:', photoUri, e?.nativeEvent);
+                // Reset to default if image fails to load
+                setPhotoUri(null);
+              }}
+              defaultSource={require('../../../assets/Ellipse 18.png')}
+              resizeMode="cover"
             />
             <View style={styles.cameraBadge}>
               <Ionicons name="camera" size={16} color="#fff" />
